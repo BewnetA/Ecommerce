@@ -25,7 +25,11 @@ export const DemoSwitcher: React.FC = () => {
     await switchUser(userId);
     if (target?.user.role === 'admin') {
       navigate('/admin');
-    } else if (target?.user.role === 'seller') {
+    } else if (
+      target?.user.role === 'seller' &&
+      target.sellerStatus !== 'rejected' &&
+      target.user.status !== 'rejected'
+    ) {
       navigate('/seller/dashboard');
     } else {
       navigate('/buyer/dashboard');
@@ -64,16 +68,16 @@ export const DemoSwitcher: React.FC = () => {
     <div className="relative inline-block text-left">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition border border-slate-700"
+        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#292C31] text-white hover:bg-[#363A40] shadow-sm transition border border-[#363A40]"
       >
         <span className="flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span>Demo Role:</span>
-          <span className="text-amber-300 font-bold">
+          <Sparkles className="w-3.5 h-3.5 text-[#75C96B]" />
+          <span className="hidden sm:inline">Role:</span>
+          <span className="text-[#75C96B] font-bold">
             {user ? user.name.split(' ')[0] : 'Guest'}
           </span>
           {user && (
-            <span className="uppercase text-[10px] tracking-wider bg-white/20 px-1.5 py-0.5 rounded-sm">
+            <span className="uppercase text-[9px] sm:text-[10px] tracking-wider bg-white/15 px-1.5 py-0.5 rounded-sm">
               {user.role}
             </span>
           )}
@@ -82,7 +86,7 @@ export const DemoSwitcher: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl bg-white shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
           <div className="px-4 py-2 border-b border-slate-100">
             <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">
               Quick Role Switcher
@@ -100,7 +104,7 @@ export const DemoSwitcher: React.FC = () => {
                   key={item.user.id}
                   onClick={() => handleSelectUser(item.user.id)}
                   className={`w-full text-left px-3 py-2.5 rounded-xl transition flex items-start gap-2.5 ${
-                    isActive ? 'bg-indigo-50/80 text-indigo-900 font-medium' : 'hover:bg-slate-50 text-slate-700'
+                    isActive ? 'bg-[#EEF9EC] text-[#1E4D1A] font-semibold' : 'hover:bg-slate-50 text-slate-700'
                   }`}
                 >
                   <div className="mt-0.5">{getRoleIcon(item.user.role, item.sellerStatus)}</div>

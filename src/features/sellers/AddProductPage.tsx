@@ -45,7 +45,7 @@ export const AddProductPage: React.FC = () => {
     }
   }, [sellerProfile, user]);
 
-  const isApprovedSeller = sellerProfile?.status === 'approved';
+  const isApprovedSeller = user?.role === 'admin' || sellerProfile?.status === 'approved';
 
   const handleAddImage = () => {
     if (customImageUrl.trim()) {

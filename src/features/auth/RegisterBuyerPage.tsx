@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, User, Mail, Phone, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import logoImg from '../../assets/ec-logo.png';
 
 export const RegisterBuyerPage: React.FC = () => {
   const { registerBuyer } = useAuth();
@@ -44,8 +45,12 @@ export const RegisterBuyerPage: React.FC = () => {
       <div className="max-w-md w-full space-y-6 bg-white p-8 sm:p-10 rounded-3xl border border-slate-200/80 shadow-xl">
         <div className="text-center">
           <Link to="/" className="inline-flex items-center gap-2 group">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-              <ShoppingBag className="w-6 h-6" />
+            <div className="w-14 h-14 rounded-2xl bg-[#292C31] border border-slate-700/80 flex items-center justify-center p-2 shadow-md group-hover:scale-105 transition-transform overflow-hidden">
+              <img
+                src={logoImg}
+                alt="Addis Repair logo"
+                className="w-full h-full object-contain scale-140"
+              />
             </div>
           </Link>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">

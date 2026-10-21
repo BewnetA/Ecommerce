@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import {
   Send,
   ArrowLeft,
@@ -14,6 +14,7 @@ import type { Conversation, Message, Product, LocationSnippet } from '../../type
 
 export const ConversationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const { user, buyerProfile } = useAuth();
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -26,42 +27,103 @@ export const ConversationDetailPage: React.FC = () => {
   const [attachLocation, setAttachLocation] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+  const initialScrolledRef = useRef(false);
+  const prevMessagesCountRef = useRef(0);
 
-  const isSeller = user?.role === 'seller';
-  const backPath = isSeller ? '/seller/messages' : '/buyer/messages';
+  const isSellerRoute = location.pathname.startsWith('/seller');
+  const isSeller =
+    isSellerRoute ||
+    conversation?.sellerId === user?.id ||
+    user?.role === 'seller' ||
+    user?.role === 'admin';
+  const backPath = isSellerRoute ? '/seller/messages' : '/buyer/messages';
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, []);
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    // Consider within 60px as "following the latest messages" at bottom
+    isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 60;
   };
 
-  const fetchChat = async () => {
+  const fetchChat = useCallback(async () => {
     if (!id || !user) return;
     try {
       const res = await messagingApi.getConversationWithMessages(id, user.id);
       setConversation(res.conversation);
-      setMessages(res.messages);
+
+      setMessages((prev) => {
+        // Compare prev and res.messages to avoid unnecessary re-renders that reset state
+        if (
+          prev.length === res.messages.length &&
+          prev.length > 0 &&
+          prev[prev.length - 1]?.id === res.messages[res.messages.length - 1]?.id &&
+          prev[prev.length - 1]?.isRead === res.messages[res.messages.length - 1]?.isRead
+        ) {
+          return prev; // keep identical reference to prevent unnecessary effect triggers
+        }
+        return res.messages;
+      });
 
       // Load product details for context header
-      if (!product && res.conversation.productId) {
-        const prod = await productApi.getProductById(res.conversation.productId);
-        setProduct(prod);
+      if (res.conversation.productId) {
+        setProduct((prev) => {
+          if (!prev) {
+            productApi.getProductById(res.conversation.productId).then((prod) => {
+              if (prod) setProduct(prod);
+            }).catch(console.error);
+          }
+          return prev;
+        });
       }
     } catch (err) {
       console.error('Failed to load conversation details:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, user]);
+
+  // Reset scroll tracking when navigating between different conversations
+  useEffect(() => {
+    initialScrolledRef.current = false;
+    prevMessagesCountRef.current = 0;
+    isAtBottomRef.current = true;
+  }, [id]);
 
   useEffect(() => {
     fetchChat();
     const interval = setInterval(fetchChat, 3000);
     return () => clearInterval(interval);
-  }, [id, user]);
+  }, [fetchChat]);
 
+  // Deliberate auto-scrolling: only on initial load or when new messages arrive and user is at bottom
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (messages.length === 0) return;
+
+    if (!initialScrolledRef.current) {
+      initialScrolledRef.current = true;
+      prevMessagesCountRef.current = messages.length;
+      // Scroll to bottom immediately on initial load
+      scrollToBottom('auto');
+      return;
+    }
+
+    if (messages.length > prevMessagesCountRef.current) {
+      const lastMessage = messages[messages.length - 1];
+      const isSentByMe = lastMessage?.senderId === user?.id;
+
+      // Only auto-scroll if the current user sent it or user is already at the bottom following latest messages
+      if (isSentByMe || isAtBottomRef.current) {
+        scrollToBottom('smooth');
+      }
+      prevMessagesCountRef.current = messages.length;
+    }
+  }, [messages, user?.id, scrollToBottom]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +154,10 @@ export const ConversationDetailPage: React.FC = () => {
 
       setInputText('');
       setAttachLocation(false);
+      // Mark as at bottom and scroll when user sends their own message
+      isAtBottomRef.current = true;
       await fetchChat();
+      scrollToBottom('smooth');
     } catch (err: any) {
       alert(err.message || 'Failed to send message.');
     } finally {
@@ -140,7 +205,7 @@ export const ConversationDetailPage: React.FC = () => {
       </div>
 
       {/* Product Context Banner (Mandatory PRD Section 6) */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">
+      <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0">
           <img
             src={
@@ -208,7 +273,11 @@ export const ConversationDetailPage: React.FC = () => {
         </div>
 
         {/* Message bubbles list */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/30">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/30"
+        >
           {messages.map((m) => {
             const isMe = m.senderId === user?.id;
 

@@ -159,12 +159,30 @@ export const productApi = {
   async createProduct(sellerId: string, input: CreateProductInput): Promise<Product> {
     const data = loadStorageData();
 
-    // Verify seller is approved
-    const seller = data.sellerProfiles.find((s) => s.userId === sellerId || s.id === sellerId);
+    // Verify seller is authorized
+    const user = data.users.find((u) => u.id === sellerId);
+    const isAdmin = user?.role === 'admin';
+    let seller = data.sellerProfiles.find((s) => s.userId === sellerId || s.id === sellerId);
+    if (!seller && isAdmin && user) {
+      seller = {
+        id: user.id,
+        userId: user.id,
+        storeName: 'Addis Repair Official Store',
+        businessDescription: 'Official store managed by Addis Repair platform administrators, featuring verified electronics, equipment, and repair services.',
+        phone: user.phone || '+251900000000',
+        email: user.email || 'admin@marketplace.com',
+        location: 'Addis Ababa, Bole Sub-City',
+        logoUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+        status: 'approved',
+        createdAt: user.createdAt,
+        updatedAt: new Date().toISOString(),
+      };
+      data.sellerProfiles.push(seller);
+    }
     if (!seller) {
       throw new Error('Seller profile not found.');
     }
-    if (seller.status !== 'approved') {
+    if (!isAdmin && seller.status !== 'approved') {
       throw new Error(
         `Seller account status is "${seller.status}". Only approved sellers are authorized to publish products.`
       );
@@ -198,7 +216,7 @@ export const productApi = {
       condition: input.condition,
       quantity: Number(input.quantity) || 1,
       images: defaultImg,
-      status: 'pending', // Product begins in pending status!
+      status: isAdmin ? 'approved' : 'pending',
       viewsCount: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -206,24 +224,28 @@ export const productApi = {
 
     data.products.unshift(newProduct);
 
-    // Notify Administrator
-    data.notifications.unshift({
-      id: `notif-${Date.now()}`,
-      userId: 'user-admin',
-      title: 'New Product Pending Approval',
-      message: `Seller "${seller.storeName}" submitted a new product: "${newProduct.name}".`,
-      type: 'system',
-      isRead: false,
-      linkTo: '/admin/products/approvals',
-      createdAt: new Date().toISOString(),
-    });
+    // Notify Administrator if submitted by a merchant
+    if (!isAdmin) {
+      data.notifications.unshift({
+        id: `notif-${Date.now()}`,
+        userId: 'user-admin',
+        title: 'New Product Pending Approval',
+        message: `Seller "${seller.storeName}" submitted a new product: "${newProduct.name}".`,
+        type: 'system',
+        isRead: false,
+        linkTo: '/admin/products/approvals',
+        createdAt: new Date().toISOString(),
+      });
+    }
 
     data.activityLogs.unshift({
       id: `act-${Date.now()}`,
       actorName: seller.storeName,
-      actorRole: 'seller',
+      actorRole: isAdmin ? 'admin' : 'seller',
       action: 'SUBMIT_PRODUCT',
-      details: `Submitted product "${newProduct.name}" ($${newProduct.price}) for admin approval.`,
+      details: isAdmin
+        ? `Administrator published official product "${newProduct.name}".`
+        : `Submitted product "${newProduct.name}" ($${newProduct.price}) for admin approval.`,
       createdAt: new Date().toISOString(),
     });
 
@@ -241,12 +263,14 @@ export const productApi = {
     if (index === -1) throw new Error('Product not found.');
 
     const current = data.products[index];
-    if (current.sellerId !== sellerId) {
+    const user = data.users.find((u) => u.id === sellerId);
+    const isAdmin = user?.role === 'admin';
+    if (current.sellerId !== sellerId && !isAdmin) {
       throw new Error('Unauthorized: You can only edit your own products.');
     }
 
-    // Business rule: Editing an approved product resets to 'pending' for re-moderation
-    const requiresReapproval = current.status === 'approved';
+    // Business rule: Editing an approved product resets to 'pending' for re-moderation unless admin
+    const requiresReapproval = current.status === 'approved' && !isAdmin;
     const newStatus: ProductStatus = requiresReapproval ? 'pending' : current.status;
 
     let categoryName = current.categoryName;

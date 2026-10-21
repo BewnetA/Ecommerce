@@ -150,7 +150,7 @@ export const ProductListingPage: React.FC = () => {
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3" />
             <button
               type="submit"
-              className="absolute right-1 px-2.5 py-1 bg-indigo-600 text-white text-xs font-medium rounded-lg"
+              className="absolute right-1 px-2.5 py-1 bg-[#75C96B] hover:bg-[#65b85b] text-[#202226] text-xs font-bold rounded-lg transition"
             >
               Search
             </button>
@@ -158,7 +158,7 @@ export const ProductListingPage: React.FC = () => {
 
           <button
             onClick={() => setMobileFilterOpen(!mobileFilterOpen)}
-            className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs"
+            className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs shrink-0"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             Filters

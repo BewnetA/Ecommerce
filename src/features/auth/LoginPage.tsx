@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  ShoppingBag,
   Mail,
   Lock,
   ArrowRight,
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import logoImg from '../../assets/ec-logo.png';
 
 export const LoginPage: React.FC = () => {
   const { login, demoUsers, switchUser } = useAuth();
@@ -37,7 +37,7 @@ export const LoginPage: React.FC = () => {
         navigate(from, { replace: true });
       } else if (loggedUser.role === 'admin') {
         navigate('/admin', { replace: true });
-      } else if (loggedUser.role === 'seller') {
+      } else if (loggedUser.role === 'seller' && loggedUser.status !== 'rejected') {
         navigate('/seller/dashboard', { replace: true });
       } else {
         navigate('/buyer/dashboard', { replace: true });
@@ -49,14 +49,14 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleQuickLogin = async (userId: string, role: string) => {
+  const handleQuickLogin = async (userId: string, role: string, sellerStatus?: string) => {
     setError('');
     setIsLoading(true);
     try {
-      await switchUser(userId);
+      const switched = await switchUser(userId);
       if (role === 'admin') {
         navigate('/admin', { replace: true });
-      } else if (role === 'seller') {
+      } else if (role === 'seller' && sellerStatus !== 'rejected' && switched.status !== 'rejected') {
         navigate('/seller/dashboard', { replace: true });
       } else {
         navigate('/buyer/dashboard', { replace: true });
@@ -73,12 +73,16 @@ export const LoginPage: React.FC = () => {
       <div className="max-w-md w-full space-y-8 bg-white p-8 sm:p-10 rounded-3xl border border-slate-200/80 shadow-xl">
         <div className="text-center">
           <Link to="/" className="inline-flex items-center gap-2.5 group">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-              <ShoppingBag className="w-6 h-6" />
+            <div className="w-14 h-14 rounded-2xl bg-[#292C31] border border-slate-700/80 flex items-center justify-center p-2 shadow-md group-hover:scale-105 transition-transform overflow-hidden">
+              <img
+                src={logoImg}
+                alt="Addis Repair logo"
+                className="w-full h-full object-contain scale-140"
+              />
             </div>
           </Link>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
-            Welcome to AgoraHub
+            Welcome to Addis Repair
           </h2>
           <p className="mt-1 text-xs text-slate-500">
             Sign in to access your role-specific dashboard or explore as guest
@@ -96,7 +100,7 @@ export const LoginPage: React.FC = () => {
               <button
                 key={d.user.id}
                 type="button"
-                onClick={() => handleQuickLogin(d.user.id, d.user.role)}
+                onClick={() => handleQuickLogin(d.user.id, d.user.role, d.sellerStatus)}
                 className="text-left p-2 rounded-xl bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-xs transition text-xs flex flex-col justify-between"
               >
                 <div className="flex items-center justify-between gap-1 w-full">

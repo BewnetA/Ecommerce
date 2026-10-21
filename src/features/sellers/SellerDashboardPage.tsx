@@ -19,7 +19,7 @@ export const SellerDashboardPage: React.FC = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const status = sellerProfile?.status || 'pending';
+  const status = user?.role === 'admin' ? 'approved' : (sellerProfile?.status || 'pending');
 
   useEffect(() => {
     if (!user) return;

@@ -33,8 +33,29 @@ export const sellerApi = {
 
   async getSellerById(sellerId: string): Promise<SellerWithDetails | null> {
     const data = loadStorageData();
-    const seller = data.sellerProfiles.find((s) => s.userId === sellerId || s.id === sellerId);
-    if (!seller) return simulateLatency(null, 100);
+    let seller = data.sellerProfiles.find((s) => s.userId === sellerId || s.id === sellerId);
+    if (!seller) {
+      const user = data.users.find((u) => u.id === sellerId);
+      if (user?.role === 'admin') {
+        seller = {
+          id: user.id,
+          userId: user.id,
+          storeName: 'Addis Repair Official Store',
+          businessDescription: 'Official store managed by Addis Repair platform administrators, featuring verified electronics, equipment, and repair services.',
+          phone: user.phone || '+251900000000',
+          email: user.email || 'admin@marketplace.com',
+          location: 'Addis Ababa, Bole Sub-City',
+          logoUrl: user.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+          status: 'approved',
+          createdAt: user.createdAt,
+          updatedAt: new Date().toISOString(),
+        };
+        data.sellerProfiles.push(seller);
+        saveStorageData(data);
+      } else {
+        return simulateLatency(null, 100);
+      }
+    }
 
     const user = data.users.find((u) => u.id === seller.userId);
     const products = data.products.filter((p) => p.sellerId === seller.userId);

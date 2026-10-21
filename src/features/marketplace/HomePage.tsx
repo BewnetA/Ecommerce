@@ -66,18 +66,18 @@ export const HomePage: React.FC = () => {
   return (
     <div className="space-y-16 pb-16">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-indigo-900 via-slate-900 to-slate-950 text-white pt-16 pb-24 px-4 sm:px-6 lg:px-8">
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#818cf8_1px,transparent_1px)] [background-size:16px_16px]" />
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#202226] via-[#292C31] to-[#1a1c1f] text-white pt-16 pb-24 px-4 sm:px-6 lg:px-8">
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#75C96B_1px,transparent_1px)] [background-size:16px_16px]" />
 
         <div className="relative max-w-5xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/30 text-indigo-300 text-xs font-semibold backdrop-blur-md">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#75C96B]/15 border border-[#75C96B]/30 text-[#75C96B] text-xs font-bold backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Direct Marketplace Connection</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
             Discover Verified Products from <br className="hidden sm:inline" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-sky-300 to-indigo-200">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-[#75C96B] to-slate-200">
               Trusted Local Sellers
             </span>
           </h1>
@@ -95,7 +95,7 @@ export const HomePage: React.FC = () => {
               <Search className="w-5 h-5 text-slate-400 mr-2 shrink-0" />
               <input
                 type="text"
-                placeholder="Search laptops, headphones, footwear, apparel..."
+                placeholder="Search laptops, headphones, footwear, equipment..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none py-2"
@@ -103,7 +103,7 @@ export const HomePage: React.FC = () => {
             </div>
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold px-6 py-3 rounded-xl transition shadow-md shadow-indigo-600/30 shrink-0"
+              className="bg-[#75C96B] hover:bg-[#65b85b] text-[#202226] text-xs sm:text-sm font-bold px-6 py-3 rounded-xl transition shadow-md shadow-[#75C96B]/20 shrink-0"
             >
               Search Marketplace
             </button>
@@ -274,16 +274,16 @@ export const HomePage: React.FC = () => {
 
       {/* Verified Sellers Spotlight */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-slate-900 text-white rounded-3xl p-8 sm:p-10 relative overflow-hidden">
+        <div className="bg-[#292C31] text-white rounded-3xl p-8 sm:p-10 relative overflow-hidden border border-[#363A40]">
           <div className="max-w-2xl space-y-4 relative z-10">
-            <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#75C96B]">
               Verified Merchant Network
             </span>
             <h3 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Connect Directly with Top Rated Merchants
+              Connect Directly with Top Rated Merchants & Technicians
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Every merchant on AgoraHub is verified by platform administrators. Transparent contact numbers and physical storefront addresses make local trade reliable and hassle-free.
+              Every merchant on Addis Repair is verified by platform administrators. Transparent contact numbers and physical storefront addresses make local trade reliable and hassle-free.
             </p>
           </div>
 
@@ -292,7 +292,7 @@ export const HomePage: React.FC = () => {
               <Link
                 key={s.userId}
                 to={`/sellers/${s.userId}`}
-                className="p-5 rounded-2xl bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/10 transition flex flex-col justify-between"
+                className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center gap-3 mb-3">
@@ -304,7 +304,7 @@ export const HomePage: React.FC = () => {
                     <div>
                       <h4 className="font-semibold text-sm text-white">{s.storeName}</h4>
                       <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-indigo-400" />
+                        <MapPin className="w-3 h-3 text-[#75C96B]" />
                         <span className="truncate">{s.location}</span>
                       </p>
                     </div>
@@ -314,9 +314,9 @@ export const HomePage: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-indigo-300 font-medium">
+                <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-slate-300 font-medium">
                   <span>{s.approvedProductCount} Approved Listings</span>
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 text-[#75C96B]">
                     Storefront <ArrowRight className="w-3 h-3" />
                   </span>
                 </div>
@@ -325,13 +325,13 @@ export const HomePage: React.FC = () => {
           </div>
 
           {/* Become a seller CTA */}
-          <div className="mt-8 pt-6 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="mt-8 pt-6 border-t border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <span className="text-xs text-slate-400">
-              Are you a merchant or store owner in Ethiopia?
+              Are you a merchant or repair specialist in Addis Ababa?
             </span>
             <Link
               to="/register/seller"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md transition"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#75C96B] hover:bg-[#65b85b] text-[#202226] text-xs font-bold shadow-md transition"
             >
               <Store className="w-4 h-4" />
               <span>Apply for Seller Account</span>

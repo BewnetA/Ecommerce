@@ -11,6 +11,7 @@ import {
   Clock,
   Ban,
   CheckCircle2,
+  Shield,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
@@ -19,7 +20,7 @@ import { useAuth } from '../features/auth/AuthContext';
 export const SellerLayout: React.FC = () => {
   const { user, sellerProfile } = useAuth();
 
-  const status = sellerProfile?.status || 'pending';
+  const status = user?.role === 'admin' ? 'approved' : (sellerProfile?.status || 'pending');
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans antialiased">
@@ -107,6 +108,15 @@ export const SellerLayout: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              {user?.role === 'admin' && (
+                <Link
+                  to="/admin"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition"
+                >
+                  <Shield className="w-3.5 h-3.5 text-purple-600" />
+                  Admin Console
+                </Link>
+              )}
               {user && (
                 <Link
                   to={`/sellers/${user.id}`}
@@ -118,10 +128,10 @@ export const SellerLayout: React.FC = () => {
               )}
               <Link
                 to="/seller/products/new"
-                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white rounded-xl shadow-xs transition ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl shadow-xs transition ${
                   status === 'approved'
-                    ? 'bg-indigo-600 hover:bg-indigo-700'
-                    : 'bg-slate-400 cursor-not-allowed opacity-60'
+                    ? 'bg-[#75C96B] hover:bg-[#65b85b] text-[#202226]'
+                    : 'bg-slate-400 text-white cursor-not-allowed opacity-60'
                 }`}
                 title={status !== 'approved' ? 'Requires approved seller status' : 'Add product'}
               >
@@ -138,7 +148,7 @@ export const SellerLayout: React.FC = () => {
               className={({ isActive }) =>
                 `flex items-center gap-2 py-2.5 px-3 border-b-2 transition whitespace-nowrap ${
                   isActive
-                    ? 'border-indigo-600 text-indigo-600'
+                    ? 'border-[#75C96B] text-[#202226] font-bold'
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`
               }

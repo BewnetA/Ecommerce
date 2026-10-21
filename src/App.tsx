@@ -95,8 +95,22 @@ export function App() {
             <Route index element={<Navigate to="/seller/dashboard" replace />} />
             <Route path="dashboard" element={<SellerDashboardPage />} />
             <Route path="products" element={<MyProductsPage />} />
-            <Route path="products/new" element={<AddProductPage />} />
-            <Route path="products/edit/:id" element={<EditProductPage />} />
+            <Route
+              path="products/new"
+              element={
+                <ProtectedRoute allowedRoles={['seller', 'admin']} requireApprovedSeller>
+                  <AddProductPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="products/edit/:id"
+              element={
+                <ProtectedRoute allowedRoles={['seller', 'admin']} requireApprovedSeller>
+                  <EditProductPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="profile" element={<SellerProfileEditPage />} />
             <Route path="messages" element={<ConversationListPage />} />
             <Route path="messages/:id" element={<ConversationDetailPage />} />

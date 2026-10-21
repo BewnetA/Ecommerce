@@ -312,7 +312,7 @@ export const ProductDetailPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setInquiryModalOpen(true)}
-                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition"
+                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#75C96B] hover:bg-[#65b85b] text-[#202226] font-bold text-xs sm:text-sm shadow-md shadow-[#75C96B]/20 transition"
                 >
                   <MessageSquare className="w-4 h-4" />
                   <span>Message Seller</span>

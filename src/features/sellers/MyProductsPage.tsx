@@ -69,7 +69,7 @@ export const MyProductsPage: React.FC = () => {
     }
   };
 
-  const isApprovedSeller = sellerProfile?.status === 'approved';
+  const isApprovedSeller = user?.role === 'admin' || sellerProfile?.status === 'approved';
 
   return (
     <div className="space-y-6">

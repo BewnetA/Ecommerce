@@ -1,1 +1,119 @@
 @import "tailwindcss";
+
+@theme {
+  --color-charcoal-50: #f5f6f7;
+  --color-charcoal-100: #e6e8eb;
+  --color-charcoal-200: #cbcfd4;
+  --color-charcoal-700: #3c4047;
+  --color-charcoal-800: #202226;
+  --color-charcoal-900: #292c31;
+  --color-charcoal-950: #1a1c1f;
+  --color-charcoal: #292c31;
+
+  --color-brand-green: #75c96b;
+  --color-brand-green-hover: #65b85b;
+  --color-brand-green-dark: #1e4d1a;
+  --color-brand-green-light: #eef9ec;
+}
+
+@layer base {
+  /* Ensure all interactive clickable elements show a pointer cursor */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]):not([disabled]),
+  select:not(:disabled),
+  summary,
+  a[href],
+  input[type="button"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="reset"]:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  label[for],
+  label:has(input:not(:disabled)),
+  label:has(select:not(:disabled)) {
+    cursor: pointer;
+  }
+
+  /* Disabled controls must show not-allowed cursor */
+  button:disabled,
+  button[disabled],
+  [role="button"][aria-disabled="true"],
+  [role="button"]:disabled,
+  select:disabled,
+  input:disabled,
+  input[disabled],
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+/* Addis Repair Brand Styling System */
+/* Primary Action Buttons: brand green with high-contrast charcoal text */
+button.bg-indigo-600,
+a.bg-indigo-600,
+.btn-primary {
+  background-color: #75c96b !important;
+  color: #202226 !important;
+  font-weight: 700 !important;
+  border-color: #75c96b !important;
+}
+
+button.bg-indigo-600:hover,
+a.bg-indigo-600:hover,
+.btn-primary:hover {
+  background-color: #65b85b !important;
+  color: #1a1c1f !important;
+}
+
+button.bg-indigo-700,
+a.bg-indigo-700 {
+  background-color: #65b85b !important;
+  color: #202226 !important;
+}
+
+/* Active navigation indicators, tabs and borders */
+.border-indigo-600 {
+  border-color: #75c96b !important;
+}
+
+.border-indigo-500 {
+  border-color: #75c96b !important;
+}
+
+/* Links & interactive text accents (accessible green with >5:1 contrast on white) */
+.text-indigo-600 {
+  color: #23521d !important;
+}
+
+a.text-indigo-600:hover,
+button.text-indigo-600:hover {
+  color: #163612 !important;
+}
+
+.text-indigo-700 {
+  color: #1e461a !important;
+}
+
+/* Subtle brand backgrounds */
+.bg-indigo-50 {
+  background-color: #eef9ec !important;
+}
+
+.bg-indigo-100 {
+  background-color: #def3db !important;
+}
+
+/* Form controls & focus states */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+.focus\:border-indigo-500:focus {
+  border-color: #75c96b !important;
+}
+
+.focus\:ring-indigo-500:focus {
+  --tw-ring-color: #75c96b !important;
+}

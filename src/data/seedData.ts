@@ -190,6 +190,19 @@ export const INITIAL_BUYER_PROFILES: BuyerProfile[] = [
 
 export const INITIAL_SELLER_PROFILES: SellerProfile[] = [
   {
+    id: 'user-admin',
+    userId: 'user-admin',
+    storeName: 'Addis Repair Official Store',
+    businessDescription: 'Official store managed by Addis Repair platform administrators, featuring verified electronics, equipment, and repair services.',
+    phone: '+251900000000',
+    email: 'admin@marketplace.com',
+    location: 'Addis Ababa, Bole Sub-City',
+    logoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+    status: 'approved',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  {
     id: 'user-seller-approved',
     userId: 'user-seller-approved',
     storeName: 'BlueNile Electronics & Tech',

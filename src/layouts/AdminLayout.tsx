@@ -11,6 +11,7 @@ import {
   UserCheck,
   BarChart3,
   ExternalLink,
+  PackagePlus,
 } from 'lucide-react';
 import { Navbar } from '../components/layout/Navbar';
 import { Footer } from '../components/layout/Footer';
@@ -40,7 +41,7 @@ export const AdminLayout: React.FC = () => {
       <Navbar />
 
       {/* Admin Subheader Bar */}
-      <div className="bg-slate-900 text-white border-b border-slate-800">
+      <div className="bg-[#292C31] text-white border-b border-[#363A40]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-purple-600/30 text-purple-300 border border-purple-500/30">
@@ -59,13 +60,27 @@ export const AdminLayout: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/seller/products/new"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#202226] bg-[#75C96B] hover:bg-[#65b85b] rounded-xl shadow-xs transition"
+            >
+              <PackagePlus className="w-3.5 h-3.5" />
+              Add Product
+            </Link>
+            <Link
+              to="/seller/dashboard"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-[#202226] hover:bg-[#1a1c1f] rounded-xl border border-slate-700 transition"
+            >
+              <Store className="w-3.5 h-3.5 text-[#75C96B]" />
+              Seller Portal
+            </Link>
             <Link
               to="/products"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-[#202226] hover:bg-[#1a1c1f] rounded-xl border border-slate-700 transition"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              View Public Marketplace
+              Public Market
             </Link>
           </div>
         </div>

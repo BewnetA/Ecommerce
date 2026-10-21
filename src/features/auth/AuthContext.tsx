@@ -43,19 +43,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      if (currentUser.role === 'seller') {
+      if (currentUser.role === 'seller' || currentUser.role === 'admin') {
         const profile = await sellerApi.getSellerById(currentUser.id);
         setSellerProfile(profile);
       } else {
         setSellerProfile(null);
       }
 
-      if (currentUser.role === 'buyer') {
-        const { profile } = await userApi.getBuyerProfile(currentUser.id);
-        setBuyerProfile(profile);
-      } else {
-        setBuyerProfile(null);
-      }
+      // Load buyer profile for buyers, rejected seller applicants, and admins
+      const { profile: bProfile } = await userApi.getBuyerProfile(currentUser.id);
+      setBuyerProfile(bProfile);
     } catch (err) {
       console.error('Error loading role profiles for user:', err);
     }
