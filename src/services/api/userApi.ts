@@ -151,4 +151,79 @@ export const userApi = {
     saveStorageData(data);
     return simulateLatency(data.users[index], 120);
   },
+
+  async getAllAdmins(): Promise<User[]> {
+    const data = loadStorageData();
+    const admins = data.users.filter((u) => u.role === 'admin');
+    return simulateLatency(admins, 100);
+  },
+
+  async createAdmin(params: {
+    name: string;
+    email: string;
+    phone?: string;
+    password?: string;
+  }): Promise<User> {
+    const data = loadStorageData();
+
+    if (!params.name.trim() || !params.email.trim()) {
+      throw new Error('Name and email are required to create an admin account.');
+    }
+
+    const emailExists = data.users.some(
+      (u) => u.email.toLowerCase() === params.email.trim().toLowerCase()
+    );
+    if (emailExists) {
+      throw new Error('An account with this email address already exists.');
+    }
+
+    const newAdmin: User = {
+      id: `user-admin-${Date.now()}`,
+      name: params.name.trim(),
+      email: params.email.trim().toLowerCase(),
+      phone: params.phone?.trim() || '+251900000000',
+      role: 'admin',
+      status: 'active',
+      avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80`,
+      createdAt: new Date().toISOString(),
+    };
+
+    data.users.unshift(newAdmin);
+    data.activityLogs.unshift({
+      id: `act-${Date.now()}`,
+      actorName: 'Administrator',
+      actorRole: 'admin',
+      action: 'CREATE_ADMIN',
+      details: `Created new administrator account for "${newAdmin.name}" (${newAdmin.email}).`,
+      createdAt: new Date().toISOString(),
+    });
+
+    saveStorageData(data);
+    return simulateLatency(newAdmin, 120);
+  },
+
+  async deleteAdmin(adminId: string, currentAdminId?: string): Promise<void> {
+    const data = loadStorageData();
+    if (adminId === currentAdminId) {
+      throw new Error('You cannot delete your own active administrator account.');
+    }
+
+    const adminIndex = data.users.findIndex((u) => u.id === adminId && u.role === 'admin');
+    if (adminIndex === -1) {
+      throw new Error('Admin not found.');
+    }
+
+    const removed = data.users.splice(adminIndex, 1)[0];
+    data.activityLogs.unshift({
+      id: `act-${Date.now()}`,
+      actorName: 'Administrator',
+      actorRole: 'admin',
+      action: 'DELETE_ADMIN',
+      details: `Removed administrator account "${removed.name}" (${removed.email}).`,
+      createdAt: new Date().toISOString(),
+    });
+
+    saveStorageData(data);
+    return simulateLatency(undefined, 100);
+  },
 };

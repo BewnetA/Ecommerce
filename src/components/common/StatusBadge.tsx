@@ -9,28 +9,28 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
   const norm = status?.toLowerCase() || 'pending';
   const sizeClasses = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs';
 
-  let colorClasses = 'bg-slate-100 text-slate-700 border-slate-200';
+  let colorClasses = 'bg-slate-800 text-slate-300 border-slate-700';
 
   if (norm === 'approved' || norm === 'active' || norm === 'published' || norm === 'resolved') {
-    colorClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    colorClasses = 'bg-lime-500/15 text-lime-400 border-lime-500/30';
   } else if (norm === 'pending') {
-    colorClasses = 'bg-amber-50 text-amber-700 border-amber-200';
+    colorClasses = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
   } else if (norm === 'rejected' || norm === 'suspended' || norm === 'dismissed') {
-    colorClasses = 'bg-rose-50 text-rose-700 border-rose-200';
+    colorClasses = 'bg-rose-500/15 text-rose-400 border-rose-500/30';
   }
 
   const label = norm.charAt(0).toUpperCase() + norm.slice(1);
 
   return (
     <span
-      className={`inline-flex items-center font-medium rounded-full border ${sizeClasses} ${colorClasses}`}
+      className={`inline-flex items-center font-bold rounded-full border ${sizeClasses} ${colorClasses}`}
     >
       <span
         className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
           norm === 'approved' || norm === 'active' || norm === 'resolved'
-            ? 'bg-emerald-500'
+            ? 'bg-lime-400 shadow-sm shadow-lime-500/50'
             : norm === 'pending'
-            ? 'bg-amber-500'
+            ? 'bg-amber-400'
             : 'bg-rose-500'
         }`}
       />

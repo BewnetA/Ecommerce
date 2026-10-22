@@ -45,23 +45,27 @@ import { ProductManagementPage } from './features/admin/ProductManagementPage';
 import { CategoryManagementPage } from './features/admin/CategoryManagementPage';
 import { BuyerManagementPage } from './features/admin/BuyerManagementPage';
 import { UserManagementPage } from './features/admin/UserManagementPage';
+import { AdminManagementPage } from './features/admin/AdminManagementPage';
 import { AdminReportsPage } from './features/admin/AdminReportsPage';
 import { ReportedItemsPage } from './features/admin/ReportedItemsPage';
 
 export function App() {
   return (
     <AuthProvider>
-      <Toaster position="top-right" richColors />
+      <Toaster position="top-right" richColors theme="dark" />
       <BrowserRouter>
         <Routes>
+          {/* Standalone Login Route (No Navbar, No Footer) */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<LoginPage />} />
+
           {/* Public Marketplace Routes */}
           <Route element={<PublicLayout />}>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/home" element={<HomePage />} />
             <Route path="/products" element={<ProductListingPage />} />
             <Route path="/products/:id" element={<ProductDetailPage />} />
             <Route path="/categories" element={<CategoryBrowsePage />} />
             <Route path="/sellers/:id" element={<SellerProfileViewPage />} />
-            <Route path="/login" element={<LoginPage />} />
             <Route path="/register/buyer" element={<RegisterBuyerPage />} />
             <Route path="/register/seller" element={<RegisterSellerPage />} />
           </Route>
@@ -128,6 +132,7 @@ export function App() {
           >
             <Route index element={<AdminDashboardPage />} />
             <Route path="dashboard" element={<AdminDashboardPage />} />
+            <Route path="admins" element={<AdminManagementPage />} />
             <Route path="sellers/approvals" element={<SellerApprovalQueuePage />} />
             <Route path="products/approvals" element={<ProductApprovalQueuePage />} />
             <Route path="sellers" element={<SellerManagementPage />} />

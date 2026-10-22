@@ -10,13 +10,18 @@
   --color-charcoal-950: #1a1c1f;
   --color-charcoal: #292c31;
 
-  --color-brand-green: #75c96b;
-  --color-brand-green-hover: #65b85b;
-  --color-brand-green-dark: #1e4d1a;
-  --color-brand-green-light: #eef9ec;
+  --color-lime-brand: #84cc16;
+  --color-lime-brand-hover: #a3e635;
+  --color-lime-brand-dark: #3f6212;
+  --color-lime-brand-glow: rgba(132, 204, 22, 0.25);
 }
 
 @layer base {
+  body {
+    background-color: #0c0e12;
+    color: #e2e8f0;
+  }
+
   /* Ensure all interactive clickable elements show a pointer cursor */
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]):not([disabled]),
@@ -47,60 +52,62 @@
   }
 }
 
-/* Addis Repair Brand Styling System */
-/* Primary Action Buttons: brand green with high-contrast charcoal text */
+/* ========================================================
+   Addis Repair - Dark & Lime Green Theme System
+   ======================================================== */
+
+/* Primary Action Buttons: Electric Lime Green with Bold Obsidian Text */
 button.bg-indigo-600,
 a.bg-indigo-600,
 .btn-primary {
-  background-color: #75c96b !important;
-  color: #202226 !important;
-  font-weight: 700 !important;
-  border-color: #75c96b !important;
+  background-color: #84cc16 !important;
+  color: #0c0e12 !important;
+  font-weight: 800 !important;
+  border-color: #84cc16 !important;
+  box-shadow: 0 4px 14px rgba(132, 204, 22, 0.25) !important;
 }
 
 button.bg-indigo-600:hover,
 a.bg-indigo-600:hover,
 .btn-primary:hover {
-  background-color: #65b85b !important;
-  color: #1a1c1f !important;
+  background-color: #a3e635 !important;
+  color: #000000 !important;
 }
 
 button.bg-indigo-700,
 a.bg-indigo-700 {
-  background-color: #65b85b !important;
-  color: #202226 !important;
+  background-color: #a3e635 !important;
+  color: #0c0e12 !important;
 }
 
 /* Active navigation indicators, tabs and borders */
-.border-indigo-600 {
-  border-color: #75c96b !important;
-}
-
+.border-indigo-600,
 .border-indigo-500 {
-  border-color: #75c96b !important;
+  border-color: #84cc16 !important;
 }
 
-/* Links & interactive text accents (accessible green with >5:1 contrast on white) */
-.text-indigo-600 {
-  color: #23521d !important;
+/* Links & interactive text accents */
+.text-indigo-600,
+.text-indigo-500 {
+  color: #a3e635 !important;
 }
 
 a.text-indigo-600:hover,
 button.text-indigo-600:hover {
-  color: #163612 !important;
+  color: #bef264 !important;
 }
 
 .text-indigo-700 {
-  color: #1e461a !important;
+  color: #84cc16 !important;
 }
 
-/* Subtle brand backgrounds */
+/* Brand subtle dark tinted backgrounds */
 .bg-indigo-50 {
-  background-color: #eef9ec !important;
+  background-color: rgba(132, 204, 22, 0.1) !important;
 }
 
 .bg-indigo-100 {
-  background-color: #def3db !important;
+  background-color: rgba(132, 204, 22, 0.18) !important;
 }
 
 /* Form controls & focus states */
@@ -111,9 +118,84 @@ textarea:focus {
 }
 
 .focus\:border-indigo-500:focus {
-  border-color: #75c96b !important;
+  border-color: #84cc16 !important;
 }
 
 .focus\:ring-indigo-500:focus {
-  --tw-ring-color: #75c96b !important;
+  --tw-ring-color: rgba(132, 204, 22, 0.4) !important;
+}
+
+/* Global Dark theme conversion for admin components */
+.bg-slate-100\/70,
+.bg-slate-100 {
+  background-color: #0c0e12 !important;
+}
+
+/* Card surfaces */
+.bg-white:not(.keep-white) {
+  background-color: #15181f !important;
+  border-color: #232a37 !important;
+  color: #cbd5e1 !important;
+}
+
+/* Card sub-surfaces & table header strips */
+.bg-slate-50 {
+  background-color: #101217 !important;
+  border-color: #232a37 !important;
+}
+
+/* Borders */
+.border-slate-200\/80,
+.border-slate-200,
+.border-slate-100 {
+  border-color: #232a37 !important;
+}
+
+.divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #232a37 !important;
+}
+
+/* Text adaptations in dark mode */
+.text-slate-900 {
+  color: #ffffff !important;
+}
+
+.text-slate-800 {
+  color: #f1f5f9 !important;
+}
+
+.text-slate-700 {
+  color: #cbd5e1 !important;
+}
+
+.text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+.text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Table hover */
+.hover\:bg-slate-50\/70:hover,
+.hover\:bg-slate-50:hover,
+.hover\:bg-slate-100:hover {
+  background-color: #1a202c !important;
+}
+
+/* Inputs in admin tables */
+input.bg-white,
+input.bg-slate-50,
+select.bg-white,
+select.bg-slate-50 {
+  background-color: #101217 !important;
+  border-color: #2a3243 !important;
+  color: #f8fafc !important;
+}
+
+/* Selection */
+::selection {
+  background-color: #84cc16;
+  color: #0c0e12;
 }

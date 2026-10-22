@@ -48,33 +48,33 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-[#15181f] rounded-2xl max-w-md w-full shadow-2xl border border-[#2a3243] overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150">
         <div className="p-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div
                 className={`p-2.5 rounded-xl ${
-                  isDestructive ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'
+                  isDestructive ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30' : 'bg-lime-500/15 text-lime-400 border border-lime-500/30'
                 }`}
               >
                 <AlertTriangle className="w-5 h-5" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+              <h3 className="text-lg font-bold text-white">{title}</h3>
             </div>
             <button
               onClick={handleClose}
-              className="text-slate-400 hover:text-slate-600 rounded-lg p-1 transition"
+              className="text-slate-400 hover:text-white rounded-lg p-1 transition"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <p className="mt-3 text-sm text-slate-600 leading-relaxed">{message}</p>
+          <p className="mt-3 text-sm text-slate-300 leading-relaxed">{message}</p>
 
           {requiresReason && (
             <div className="mt-4">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                 Reason *
               </label>
               <textarea
@@ -85,9 +85,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 }}
                 rows={3}
                 placeholder={reasonPlaceholder}
-                className="w-full text-sm rounded-xl border border-slate-200 p-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full text-xs rounded-xl border border-[#2a3243] bg-[#101217] text-white p-3 focus:outline-none focus:ring-1 focus:ring-lime-400/40 focus:border-lime-400"
               />
-              {error && <p className="text-xs text-rose-600 mt-1 font-medium">{error}</p>}
+              {error && <p className="text-xs text-rose-400 mt-1 font-medium">{error}</p>}
             </div>
           )}
 
@@ -95,17 +95,17 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             <button
               type="button"
               onClick={handleClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-xl transition"
+              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white hover:bg-[#1f2533] rounded-xl transition"
             >
               {cancelLabel}
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              className={`px-4 py-2 text-sm font-medium text-white rounded-xl shadow-xs transition ${
+              className={`px-4 py-2 text-xs font-bold rounded-xl shadow-xs transition ${
                 isDestructive
-                  ? 'bg-rose-600 hover:bg-rose-700'
-                  : 'bg-indigo-600 hover:bg-indigo-700'
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                  : 'bg-lime-400 hover:bg-lime-300 text-black shadow-lime-500/20'
               }`}
             >
               {confirmLabel}
