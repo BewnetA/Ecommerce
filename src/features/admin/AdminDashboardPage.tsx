@@ -107,7 +107,7 @@ export const AdminDashboardPage: React.FC = () => {
             Platform Metrics & Governance
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Real-time statistics calculated directly from local data storage
+            Real-time statistics synchronized directly with Supabase database
           </p>
         </div>
 
@@ -129,67 +129,97 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Primary Statistics Grid (Mandatory PRD Section 2.1) */}
+      {/* Primary Statistics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+        <Link
+          to="/admin/sellers"
+          className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:border-indigo-400 hover:shadow-md transition group"
+        >
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase">Total Sellers</span>
+            <span className="text-xs font-semibold uppercase group-hover:text-indigo-600 transition-colors">
+              Total Sellers
+            </span>
             <Store className="w-4 h-4 text-indigo-500" />
           </div>
           <span className="text-2xl font-black text-slate-900">{stats?.totalSellers || 0}</span>
           <p className="text-[11px] text-slate-500 mt-1">Registered stores</p>
-        </div>
+        </Link>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+        <Link
+          to="/admin/buyers"
+          className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:border-blue-400 hover:shadow-md transition group"
+        >
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase">Total Buyers</span>
+            <span className="text-xs font-semibold uppercase group-hover:text-blue-600 transition-colors">
+              Total Buyers
+            </span>
             <Users className="w-4 h-4 text-blue-500" />
           </div>
           <span className="text-2xl font-black text-slate-900">{stats?.totalBuyers || 0}</span>
           <p className="text-[11px] text-slate-500 mt-1">Active customer accounts</p>
-        </div>
+        </Link>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+        <Link
+          to="/admin/products"
+          className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:border-purple-400 hover:shadow-md transition group"
+        >
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase">All Products</span>
+            <span className="text-xs font-semibold uppercase group-hover:text-purple-600 transition-colors">
+              All Products
+            </span>
             <Package className="w-4 h-4 text-purple-500" />
           </div>
           <span className="text-2xl font-black text-slate-900">{stats?.totalProducts || 0}</span>
           <p className="text-[11px] text-slate-500 mt-1">Catalog submissions</p>
-        </div>
+        </Link>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+        <Link
+          to="/admin/sellers/approvals"
+          className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:border-amber-400 hover:shadow-md transition group"
+        >
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase">Pending Sellers</span>
+            <span className="text-xs font-semibold uppercase group-hover:text-amber-600 transition-colors">
+              Pending Sellers
+            </span>
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <span className="text-2xl font-black text-amber-600">
             {stats?.pendingSellerApprovals || 0}
           </span>
           <p className="text-[11px] text-slate-500 mt-1">Awaiting verification</p>
-        </div>
+        </Link>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+        <Link
+          to="/admin/products/approvals"
+          className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:border-amber-400 hover:shadow-md transition group"
+        >
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase">Pending Products</span>
+            <span className="text-xs font-semibold uppercase group-hover:text-amber-600 transition-colors">
+              Pending Products
+            </span>
             <Clock className="w-4 h-4 text-amber-500" />
           </div>
           <span className="text-2xl font-black text-amber-600">
             {stats?.pendingProductApprovals || 0}
           </span>
           <p className="text-[11px] text-slate-500 mt-1">Awaiting moderation</p>
-        </div>
+        </Link>
 
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs">
+        <Link
+          to="/admin/products"
+          className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:border-emerald-400 hover:shadow-md transition group"
+        >
           <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-semibold uppercase">Approved Live</span>
+            <span className="text-xs font-semibold uppercase group-hover:text-emerald-600 transition-colors">
+              Approved Live
+            </span>
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           </div>
           <span className="text-2xl font-black text-emerald-600">
             {stats?.approvedProducts || 0}
           </span>
           <p className="text-[11px] text-slate-500 mt-1">Public on marketplace</p>
-        </div>
+        </Link>
       </div>
 
       {/* Moderation Queues Section */}

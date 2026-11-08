@@ -5,7 +5,6 @@ import {
   Users,
   Store,
   Package,
-  Layers,
   Clock,
   UserCheck,
   BarChart3,
@@ -17,7 +16,7 @@ import {
 import { reportsApi, userApi } from '../services/api';
 import type { AdminStats } from '../types';
 import { useAuth } from '../features/auth/AuthContext';
-import logoImg from '../assets/ec-logo.png';
+import logoImg from '../assets/Adiss_Repairs.png';
 
 export const AdminLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -73,12 +72,6 @@ export const AdminLayout: React.FC = () => {
       exact: true,
     },
     {
-      to: '/admin/categories',
-      label: 'Categories',
-      icon: Layers,
-      exact: true,
-    },
-    {
       to: '/admin/sellers',
       label: `Seller (${stats?.totalSellers || 0})`,
       icon: Store,
@@ -122,14 +115,14 @@ export const AdminLayout: React.FC = () => {
             <div className="w-10 h-10 rounded-xl bg-[#1b202a] border border-lime-500/40 p-1 flex items-center justify-center shadow-lg shadow-lime-500/10 overflow-hidden shrink-0">
               <img
                 src={logoImg}
-                alt="Addis Repair logo"
-                className="w-full h-full object-contain scale-125"
+                alt="Addis Repairs logo"
+                className="w-full h-full object-contain"
               />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base text-white tracking-tight">
-                  Addis Repair
+                  Addis Repairs
                 </span>
                 <span className="text-[10px] uppercase font-black tracking-wider bg-lime-400 text-[#0c0e12] px-2 py-0.5 rounded-full shadow-sm shadow-lime-500/30">
                   Admin Console

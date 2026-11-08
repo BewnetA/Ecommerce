@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -6,49 +6,90 @@ import {
   MapPin,
   Phone,
   ArrowLeft,
+  Loader2,
 } from 'lucide-react';
 import { productApi } from '../../services/api';
 import type { Product } from '../../types';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { ActionAlertModal, type ActionAlertState } from '../../components/common/ActionAlertModal';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const ProductApprovalQueuePage: React.FC = () => {
-  const [pendingProducts, setPendingProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
   const [rejectTarget, setRejectTarget] = useState<Product | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<ActionAlertState>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
 
-  const fetchQueue = async () => {
-    try {
-      setLoading(true);
-      const list = await productApi.getAllProductsAdmin({ status: 'pending' });
-      setPendingProducts(list);
-    } catch (err) {
-      console.error('Failed to load product approval queue:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchQueue();
+  const fetchProductsBatch = useCallback(async (offset: number, limit: number) => {
+    return productApi.getAllProductsAdmin({
+      status: 'pending',
+      limit,
+      offset,
+    });
   }, []);
 
+  const {
+    items: pendingProducts,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchQueue,
+    sentinelRef,
+  } = useInfiniteList<Product>({
+    fetchFn: fetchProductsBatch,
+    limit: 50,
+  });
+
   const handleApprove = async (productId: string) => {
+    setProcessingId(productId);
     try {
       await productApi.approveProduct(productId);
       await fetchQueue();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Product Approved Successfully!',
+        message: 'The listing has been approved and published to the marketplace for buyers.',
+      });
     } catch (err: any) {
-      alert(err.message || 'Approval failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Approval Failed',
+        message: err.message || 'An error occurred while approving the product.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleRejectConfirm = async (reason?: string) => {
     if (!rejectTarget || !reason) return;
+    const targetId = rejectTarget.id;
+    setProcessingId(targetId);
     try {
-      await productApi.rejectProduct(rejectTarget.id, reason);
+      await productApi.rejectProduct(targetId, reason);
       setRejectTarget(null);
       await fetchQueue();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Product Rejected',
+        message: 'The listing submission has been rejected with documented feedback.',
+      });
     } catch (err: any) {
-      alert(err.message || 'Rejection failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Rejection Failed',
+        message: err.message || 'An error occurred while rejecting the product.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -102,13 +143,17 @@ export const ProductApprovalQueuePage: React.FC = () => {
                 <div className="space-y-2 flex-1">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-bold uppercase">
-                        {p.categoryName}
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold">
+                        {p.listingType || 'New spares'}
                       </span>
                       <span className="text-xs text-slate-400">ID: {p.id}</span>
                     </div>
                     <h3 className="font-bold text-base text-slate-900 mt-1">{p.name}</h3>
-                    <p className="text-lg font-black text-indigo-600">${p.price}</p>
+                    {p.listingType === 'Posts' ? (
+                      <p className="text-sm font-bold text-purple-600">Free Community Post (No Price)</p>
+                    ) : (
+                      <p className="text-lg font-black text-indigo-600">ETB {p.price}</p>
+                    )}
                   </div>
 
                   <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-2xl border border-slate-100">
@@ -137,17 +182,28 @@ export const ProductApprovalQueuePage: React.FC = () => {
               <div className="flex md:flex-col gap-2 shrink-0 justify-end">
                 <button
                   type="button"
+                  disabled={processingId === p.id}
                   onClick={() => handleApprove(p.id)}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition disabled:opacity-60"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Approve & Publish</span>
+                  {processingId === p.id ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Approving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve & Publish</span>
+                    </>
+                  )}
                 </button>
 
                 <button
                   type="button"
+                  disabled={processingId === p.id}
                   onClick={() => setRejectTarget(p)}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-xl transition border border-rose-200"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-xl transition border border-rose-200 disabled:opacity-60"
                 >
                   <XCircle className="w-4 h-4" />
                   <span>Reject Submission</span>
@@ -158,17 +214,34 @@ export const ProductApprovalQueuePage: React.FC = () => {
         </div>
       )}
 
+      {/* 50-Item Infinite Scroll Sentinel */}
+      <InfiniteScrollSentinel
+        sentinelRef={sentinelRef}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        itemCount={pendingProducts.length}
+      />
+
       {/* Reject Product Modal with Mandatory Reason */}
       <ConfirmDialog
         isOpen={Boolean(rejectTarget)}
         title="Reject Product Listing"
         message={`Please provide a reason for rejecting "${rejectTarget?.name}". This will be communicated to the seller.`}
-        confirmLabel="Reject Listing"
+        confirmLabel={processingId === rejectTarget?.id ? 'Rejecting...' : 'Reject Listing'}
         requiresReason
         reasonPlaceholder="e.g. Inappropriate item, counterfeit product, price gouging..."
         isDestructive
         onConfirm={handleRejectConfirm}
         onCancel={() => setRejectTarget(null)}
+      />
+
+      {/* Action Alert Confirmation Popup */}
+      <ActionAlertModal
+        isOpen={alertState.isOpen}
+        type={alertState.type}
+        title={alertState.title}
+        message={alertState.message}
+        onClose={() => setAlertState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

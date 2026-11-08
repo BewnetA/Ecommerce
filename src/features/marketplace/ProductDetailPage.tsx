@@ -260,12 +260,20 @@ export const ProductDetailPage: React.FC = () => {
                 {product.name}
               </h1>
 
-              <div className="mt-4 flex items-baseline gap-3">
-                <span className="text-3xl font-black text-indigo-600">
-                  {formatPrice(product.price)}
-                </span>
-                <span className="text-xs text-slate-500">Fixed/Direct Price</span>
-              </div>
+              {product.listingType !== 'Posts' ? (
+                <div className="mt-4 flex items-baseline gap-3">
+                  <span className="text-3xl font-black text-indigo-600">
+                    {formatPrice(product.price)}
+                  </span>
+                  <span className="text-xs text-slate-500">Fixed/Direct Price</span>
+                </div>
+              ) : (
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 text-sm font-bold">
+                    Community Post • Free Inquiry
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Spec list */}
@@ -332,19 +340,25 @@ export const ProductDetailPage: React.FC = () => {
             </h3>
 
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center overflow-hidden shrink-0">
+              <Link
+                to={`/sellers/${product.sellerId}`}
+                className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center overflow-hidden shrink-0 hover:opacity-90 transition"
+              >
                 <img
                   src="https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=200&auto=format&fit=crop&q=80"
                   alt={product.sellerName}
                   className="w-full h-full object-cover"
                 />
-              </div>
+              </Link>
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <h4 className="font-bold text-sm text-slate-900 truncate">
+                  <Link
+                    to={`/sellers/${product.sellerId}`}
+                    className="font-bold text-sm text-slate-900 hover:text-indigo-600 transition truncate"
+                  >
                     {product.sellerName}
-                  </h4>
+                  </Link>
                   <span title="Verified Merchant">
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                   </span>
@@ -363,9 +377,10 @@ export const ProductDetailPage: React.FC = () => {
                 <div className="mt-3">
                   <Link
                     to={`/sellers/${product.sellerId}`}
-                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
                   >
-                    View All Storefront Listings →
+                    <span>View Profile & All Posts</span>
+                    <span>→</span>
                   </Link>
                 </div>
               </div>

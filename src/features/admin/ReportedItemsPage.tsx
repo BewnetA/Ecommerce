@@ -1,30 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { reportsApi } from '../../services/api';
 import type { ReportedItem } from '../../types';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const ReportedItemsPage: React.FC = () => {
-  const [reports, setReports] = useState<ReportedItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [resolveTarget, setResolveTarget] = useState<ReportedItem | null>(null);
 
-  const fetchReports = async () => {
-    try {
-      setLoading(true);
-      const list = await reportsApi.getReportedItems();
-      setReports(list);
-    } catch (err) {
-      console.error('Failed to load reported items:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchReports();
+  const fetchReportsBatch = useCallback(async (offset: number, limit: number) => {
+    return reportsApi.getReportedItems(limit, offset);
   }, []);
+
+  const {
+    items: reports,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchReports,
+    sentinelRef,
+  } = useInfiniteList<ReportedItem>({
+    fetchFn: fetchReportsBatch,
+    limit: 50,
+  });
 
   const handleResolveConfirm = async (actionText?: string) => {
     if (!resolveTarget) return;
@@ -147,6 +146,14 @@ export const ReportedItemsPage: React.FC = () => {
             ))}
           </div>
         )}
+
+        {/* 50-Item Infinite Scroll Sentinel */}
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          itemCount={reports.length}
+        />
       </div>
 
       <ConfirmDialog

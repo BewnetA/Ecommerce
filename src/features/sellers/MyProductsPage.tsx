@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Package,
   PackagePlus,
@@ -7,41 +7,44 @@ import {
   Edit3,
   Trash2,
   AlertCircle,
-  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { productApi } from '../../services/api';
 import type { Product, ProductStatus } from '../../types';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const MyProductsPage: React.FC = () => {
   const { user, sellerProfile } = useAuth();
-  const [products, setProducts] = useState<Product[]>([]);
+  const location = useLocation();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [statusFilter, setStatusFilter] = useState<ProductStatus | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
 
   // Deletion modal state
   const [deleteProductTarget, setDeleteProductTarget] = useState<Product | null>(null);
 
-  const fetchProducts = async () => {
-    if (!user) return;
-    try {
-      setLoading(true);
-      const list = await productApi.getSellerProducts(user.id);
-      setProducts(list);
-    } catch (err) {
-      console.error('Failed to fetch seller products:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchSellerProductsBatch = useCallback(
+    async (offset: number, limit: number) => {
+      if (!user) return [];
+      return productApi.getSellerProducts(user.id, limit, offset);
+    },
+    [user]
+  );
 
-  useEffect(() => {
-    fetchProducts();
-  }, [user]);
+  const {
+    items: products,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchProducts,
+    sentinelRef,
+  } = useInfiniteList<Product>({
+    fetchFn: fetchSellerProductsBatch,
+    limit: 50,
+    deps: [user, location.key],
+  });
 
   // Filtering
   useEffect(() => {
@@ -208,15 +211,7 @@ export const MyProductsPage: React.FC = () => {
 
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {p.status === 'approved' && (
-                          <Link
-                            to={`/products/${p.id}`}
-                            className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition"
-                            title="View Public Marketplace Page"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </Link>
-                        )}
+
 
                         <Link
                           to={`/seller/products/edit/${p.id}`}
@@ -242,6 +237,14 @@ export const MyProductsPage: React.FC = () => {
             </table>
           </div>
         )}
+
+        {/* 50-Item Infinite Scroll Sentinel */}
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          itemCount={products.length}
+        />
       </div>
 
       {/* Delete Confirmation Dialog */}

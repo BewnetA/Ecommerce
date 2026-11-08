@@ -38,9 +38,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = 
 
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1">
           <span className="bg-white/95 backdrop-blur-xs text-slate-800 text-[11px] font-semibold px-2 py-0.5 rounded-md shadow-xs">
-            {product.categoryName}
+            {product.listingType || product.categoryName}
           </span>
-          {product.condition && (
+          {product.condition && product.listingType !== 'Posts' && (
             <span className="bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-medium px-2 py-0.5 rounded-md">
               {conditionLabels[product.condition] || product.condition}
             </span>
@@ -66,9 +66,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = 
       <div className="p-4 flex-1 flex flex-col justify-between">
         <div>
           <div className="flex items-baseline justify-between gap-2 mb-1">
-            <span className="text-xl font-bold text-slate-900">
-              {formatPrice(product.price)}
-            </span>
+            {product.listingType !== 'Posts' ? (
+              <span className="text-xl font-bold text-slate-900">
+                {formatPrice(product.price)}
+              </span>
+            ) : (
+              <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                Community Post
+              </span>
+            )}
             <div className="flex items-center gap-1 text-[11px] text-slate-400">
               <Eye className="w-3 h-3" />
               <span>{product.viewsCount} views</span>

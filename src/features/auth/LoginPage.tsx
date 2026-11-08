@@ -5,14 +5,18 @@ import {
   Lock,
   ArrowRight,
   AlertCircle,
-  Shield,
   Sparkles,
+  CheckCircle2,
+  X,
+  KeyRound,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
-import logoImg from '../../assets/ec-logo.png';
+import { authApi } from '../../services/api';
+import logoImg from '../../assets/Adiss_Repairs.png';
 
 export const LoginPage: React.FC = () => {
-  const { login, demoUsers, switchUser } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -21,35 +25,19 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Find admin demo account
-  const adminDemo = demoUsers.find((d) => d.user.role === 'admin') || {
-    user: {
-      id: 'user-admin',
-      name: 'Platform Administrator',
-      email: 'admin@marketplace.com',
-      role: 'admin' as const,
-      status: 'active' as const,
-      phone: '+251900000000',
-      createdAt: '2026-01-01T00:00:00Z',
-    },
-    label: 'Platform Administrator',
-    description: 'Full governance, moderation & administration privileges',
-  };
-
-  const handleAdminQuickLogin = async () => {
-    setError('');
-    setIsLoading(true);
-    try {
-      await switchUser(adminDemo.user.id);
-      navigate('/admin', { replace: true });
-    } catch (err: any) {
-      setError(err.message || 'Admin sign in failed.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Forgot Password Modal State
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotNotice, setForgotNotice] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +47,7 @@ export const LoginPage: React.FC = () => {
     }
 
     setError('');
+    setSuccessMessage('');
     setIsLoading(true);
 
     try {
@@ -77,6 +66,87 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const openForgotModal = () => {
+    setForgotStep(1);
+    setForgotEmail(email.trim());
+    setForgotOtp('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setForgotError('');
+    setForgotNotice('');
+    setIsForgotModalOpen(true);
+  };
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) {
+      setForgotError('Please enter your registered email address.');
+      return;
+    }
+
+    setForgotError('');
+    setForgotLoading(true);
+    try {
+      const res = await authApi.sendPasswordResetOtp(forgotEmail.trim());
+      setForgotNotice(res.message);
+      setForgotStep(2);
+    } catch (err: any) {
+      setForgotError(err.message || 'Failed to send recovery OTP.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotOtp.trim()) {
+      setForgotError('Please enter the 6-digit OTP code.');
+      return;
+    }
+
+    setForgotError('');
+    setForgotLoading(true);
+    try {
+      const isValid = await authApi.verifyPasswordResetOtp(forgotEmail.trim(), forgotOtp.trim());
+      if (!isValid) {
+        setForgotError('Invalid code. Please check your email or enter 123456.');
+        return;
+      }
+      setForgotNotice('');
+      setForgotStep(3);
+    } catch (err: any) {
+      setForgotError(err.message || 'Verification failed.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      setForgotError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setForgotError('Passwords do not match.');
+      return;
+    }
+
+    setForgotError('');
+    setForgotLoading(true);
+    try {
+      await authApi.resetPasswordWithOtp(forgotEmail.trim(), forgotOtp.trim(), newPassword);
+      setIsForgotModalOpen(false);
+      setEmail(forgotEmail.trim());
+      setPassword('');
+      setSuccessMessage('Password reset successfully! You can now log in with your new password.');
+    } catch (err: any) {
+      setForgotError(err.message || 'Failed to update password.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0c0e12] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 selection:bg-lime-400 selection:text-black">
       <div className="max-w-md w-full space-y-7 bg-[#15181f] p-8 sm:p-10 rounded-3xl border border-[#262f3f] shadow-2xl relative overflow-hidden">
@@ -90,53 +160,25 @@ export const LoginPage: React.FC = () => {
             <div className="w-16 h-16 rounded-2xl bg-[#1b202a] border border-lime-500/40 flex items-center justify-center p-2 shadow-lg shadow-lime-500/10 overflow-hidden">
               <img
                 src={logoImg}
-                alt="Addis Repair logo"
-                className="w-full h-full object-contain scale-140"
+                alt="Addis Repairs logo"
+                className="w-full h-full object-contain"
               />
             </div>
           </div>
           <h2 className="mt-4 text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            Addis Repair Portal
+            Addis Repairs Portal
           </h2>
           <p className="mt-1 text-xs text-slate-400">
-            Sign in to access the Central Administrator Governance Console
+            Sign in to access your Addis Repairs account
           </p>
         </div>
 
-        {/* Top Prominent Admin Account Button (Requested: at the top ONLY make admin page account) */}
-        <div className="relative z-10">
-          <div className="p-1 rounded-2xl bg-gradient-to-r from-lime-400 via-lime-500 to-emerald-400 shadow-lg shadow-lime-500/20">
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={handleAdminQuickLogin}
-              className="w-full bg-[#111318] hover:bg-[#161a22] p-4 rounded-xl text-left transition-all flex items-center justify-between group active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-xl bg-lime-400/15 border border-lime-400/40 flex items-center justify-center text-lime-400 group-hover:bg-lime-400 group-hover:text-black transition-colors shrink-0">
-                  <Shield className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-sm text-white group-hover:text-lime-300 transition-colors">
-                      Admin Page Account
-                    </span>
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-lime-400 text-black">
-                      1-Click
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Click here to enter Administrator Console directly
-                  </p>
-                </div>
-              </div>
-
-              <div className="w-8 h-8 rounded-lg bg-lime-400/10 flex items-center justify-center text-lime-400 group-hover:translate-x-1 transition-transform shrink-0">
-                <ArrowRight className="w-4 h-4" />
-              </div>
-            </button>
+        {successMessage && (
+          <div className="relative z-10 flex items-center gap-2.5 p-3 rounded-xl bg-lime-500/15 border border-lime-500/30 text-lime-300 text-xs">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{successMessage}</span>
           </div>
-        </div>
+        )}
 
         {error && (
           <div className="relative z-10 flex items-center gap-2.5 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
@@ -145,7 +187,7 @@ export const LoginPage: React.FC = () => {
           </div>
         )}
 
-        {/* Standard Manual Login Form */}
+        {/* Standard Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -158,16 +200,25 @@ export const LoginPage: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@marketplace.com"
+                placeholder="name@example.com"
                 className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Password
+              </label>
+              <button
+                type="button"
+                onClick={openForgotModal}
+                className="text-[11px] text-lime-400 hover:text-lime-300 hover:underline transition font-medium"
+              >
+                Forgot Password?
+              </button>
+            </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               <input
@@ -197,6 +248,211 @@ export const LoginPage: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {isForgotModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md bg-[#15181f] border border-[#262f3f] rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden">
+            <div className="absolute top-4 right-4">
+              <button
+                type="button"
+                onClick={() => setIsForgotModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Header */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-lime-500/10 border border-lime-500/30 flex items-center justify-center text-lime-400">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Reset Password</h3>
+                <p className="text-[11px] text-slate-400">
+                  Step {forgotStep} of 3: {forgotStep === 1 ? 'Verify Email' : forgotStep === 2 ? 'Enter Code' : 'Set New Password'}
+                </p>
+              </div>
+            </div>
+
+            {forgotNotice && (
+              <div className="mb-4 p-3 rounded-xl bg-lime-500/10 border border-lime-500/30 text-lime-300 text-xs">
+                {forgotNotice}
+              </div>
+            )}
+
+            {forgotError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{forgotError}</span>
+              </div>
+            )}
+
+            {/* Step 1: Request OTP */}
+            {forgotStep === 1 && (
+              <form onSubmit={handleSendOtp} className="space-y-4">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Enter your registered account email. We will send you a 6-digit verification code to recover your account.
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    Account Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="name@example.com"
+                      className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotModalOpen(false)}
+                    className="flex-1 py-2.5 px-4 bg-[#1e232e] hover:bg-[#252b38] text-slate-300 text-xs font-semibold rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="flex-1 py-2.5 px-4 bg-lime-400 hover:bg-lime-300 text-[#0c0e12] font-black text-xs uppercase tracking-wider rounded-xl transition disabled:opacity-50"
+                  >
+                    {forgotLoading ? 'Sending...' : 'Send OTP'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 2: Verify OTP */}
+            {forgotStep === 2 && (
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Enter the 6-digit recovery code sent to <strong className="text-lime-400">{forgotEmail}</strong>.
+                </p>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    6-Digit OTP Code
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    required
+                    value={forgotOtp}
+                    onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="w-full py-3 text-center text-lg tracking-[0.4em] font-mono bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 transition"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setForgotStep(1)}
+                    className="text-slate-400 hover:text-white transition"
+                  >
+                    Change Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={forgotLoading}
+                    className="text-lime-400 hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Resend Code</span>
+                  </button>
+                </div>
+
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotModalOpen(false)}
+                    className="flex-1 py-2.5 px-4 bg-[#1e232e] hover:bg-[#252b38] text-slate-300 text-xs font-semibold rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading || forgotOtp.length < 6}
+                    className="flex-1 py-2.5 px-4 bg-lime-400 hover:bg-lime-300 text-[#0c0e12] font-black text-xs uppercase tracking-wider rounded-xl transition disabled:opacity-50"
+                  >
+                    {forgotLoading ? 'Verifying...' : 'Verify Code'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step 3: Enter New Password */}
+            {forgotStep === 3 && (
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Verification successful. Enter your new password below.
+                </p>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    New Password (min 6 characters)
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotModalOpen(false)}
+                    className="flex-1 py-2.5 px-4 bg-[#1e232e] hover:bg-[#252b38] text-slate-300 text-xs font-semibold rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="flex-1 py-2.5 px-4 bg-lime-400 hover:bg-lime-300 text-[#0c0e12] font-black text-xs uppercase tracking-wider rounded-xl transition disabled:opacity-50"
+                  >
+                    {forgotLoading ? 'Updating...' : 'Set Password'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

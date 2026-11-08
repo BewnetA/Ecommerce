@@ -1,36 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, ArrowRight, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { messagingApi } from '../../services/api';
 import type { Conversation } from '../../types';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const ConversationListPage: React.FC = () => {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const isSeller = user?.role === 'seller';
   const basePath = isSeller ? '/seller/messages' : '/buyer/messages';
 
-  const fetchConversations = async () => {
-    if (!user) return;
-    try {
-      setLoading(true);
-      const list = await messagingApi.getConversations(user.id, user.role);
-      setConversations(list);
-    } catch (err) {
-      console.error('Failed to load conversations:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchConvsBatch = useCallback(
+    async (offset: number, limit: number) => {
+      if (!user) return [];
+      return messagingApi.getConversations(user.id, user.role, limit, offset);
+    },
+    [user]
+  );
+
+  const {
+    items: conversations,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchConversations,
+    sentinelRef,
+  } = useInfiniteList<Conversation>({
+    fetchFn: fetchConvsBatch,
+    limit: 50,
+    deps: [user],
+  });
 
   useEffect(() => {
-    fetchConversations();
-    const interval = setInterval(fetchConversations, 4000);
+    const interval = setInterval(fetchConversations, 5000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [fetchConversations]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -142,6 +148,14 @@ export const ConversationListPage: React.FC = () => {
             })}
           </div>
         )}
+
+        {/* 50-Item Infinite Scroll Sentinel */}
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          itemCount={conversations.length}
+        />
       </div>
     </div>
   );

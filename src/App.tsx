@@ -42,7 +42,6 @@ import { SellerApprovalQueuePage } from './features/admin/SellerApprovalQueuePag
 import { ProductApprovalQueuePage } from './features/admin/ProductApprovalQueuePage';
 import { SellerManagementPage } from './features/admin/SellerManagementPage';
 import { ProductManagementPage } from './features/admin/ProductManagementPage';
-import { CategoryManagementPage } from './features/admin/CategoryManagementPage';
 import { BuyerManagementPage } from './features/admin/BuyerManagementPage';
 import { UserManagementPage } from './features/admin/UserManagementPage';
 import { AdminManagementPage } from './features/admin/AdminManagementPage';
@@ -137,7 +136,7 @@ export function App() {
             <Route path="products/approvals" element={<ProductApprovalQueuePage />} />
             <Route path="sellers" element={<SellerManagementPage />} />
             <Route path="products" element={<ProductManagementPage />} />
-            <Route path="categories" element={<CategoryManagementPage />} />
+            <Route path="categories" element={<Navigate to="/admin/products" replace />} />
             <Route path="buyers" element={<BuyerManagementPage />} />
             <Route path="users" element={<UserManagementPage />} />
             <Route path="reports" element={<AdminReportsPage />} />

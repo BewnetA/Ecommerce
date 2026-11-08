@@ -58,6 +58,8 @@ export interface Category {
   createdAt: string;
 }
 
+export type ListingType = 'New spares' | 'Used spares' | 'Repair tools' | 'Services' | 'Posts';
+
 export interface Product {
   id: string;
   sellerId: string;
@@ -69,6 +71,7 @@ export interface Product {
   price: number;
   categoryId: string;
   categoryName: string;
+  listingType?: ListingType;
   condition: ProductCondition;
   quantity: number;
   images: string[];

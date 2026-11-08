@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Search,
   Eye,
@@ -16,13 +16,12 @@ import { toast } from 'sonner';
 import { userApi } from '../../services/api';
 import type { BuyerWithDetails } from '../../services/api';
 import { useAuth } from '../auth/AuthContext';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const BuyerManagementPage: React.FC = () => {
   const { user: currentUser } = useAuth();
-  const [buyers, setBuyers] = useState<BuyerWithDetails[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
-  const [loading, setLoading] = useState(true);
   const [detailsTarget, setDetailsTarget] = useState<BuyerWithDetails | null>(null);
 
   const [confirmTarget, setConfirmTarget] = useState<{
@@ -30,22 +29,21 @@ export const BuyerManagementPage: React.FC = () => {
     action: 'suspend' | 'activate';
   } | null>(null);
 
-  const fetchBuyers = async () => {
-    try {
-      setLoading(true);
-      const list = await userApi.getAllBuyers();
-      setBuyers(list);
-    } catch (err) {
-      console.error('Failed to load buyers:', err);
-      toast.error('Failed to load buyers directory.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBuyers();
+  const fetchBuyersBatch = useCallback(async (offset: number, limit: number) => {
+    return userApi.getAllBuyers(limit, offset);
   }, []);
+
+  const {
+    items: buyers,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchBuyers,
+    sentinelRef,
+  } = useInfiniteList<BuyerWithDetails>({
+    fetchFn: fetchBuyersBatch,
+    limit: 50,
+  });
 
   const filtered = buyers.filter((b) => {
     if (statusFilter !== 'all' && b.user.status !== statusFilter) return false;
@@ -307,6 +305,14 @@ export const BuyerManagementPage: React.FC = () => {
             </table>
           </div>
         )}
+
+        {/* 50-Item Infinite Scroll Sentinel */}
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          itemCount={buyers.length}
+        />
       </div>
 
       {/* Confirmation Dialog for Suspend / Activate */}

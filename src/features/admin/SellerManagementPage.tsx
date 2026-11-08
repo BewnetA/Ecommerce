@@ -1,99 +1,173 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
   ExternalLink,
   Eye,
+  Loader2,
 } from 'lucide-react';
 import { sellerApi } from '../../services/api';
 import type { SellerWithDetails } from '../../services/api';
 import type { SellerApprovalStatus } from '../../types';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { ActionAlertModal } from '../../components/common/ActionAlertModal';
+import type { ActionAlertState } from '../../components/common/ActionAlertModal';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const SellerManagementPage: React.FC = () => {
-  const [sellers, setSellers] = useState<SellerWithDetails[]>([]);
   const [filteredSellers, setFilteredSellers] = useState<SellerWithDetails[]>([]);
   const [statusFilter, setStatusFilter] = useState<SellerApprovalStatus | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
 
   // Dialog targets
   const [rejectTarget, setRejectTarget] = useState<SellerWithDetails | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<SellerWithDetails | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<SellerWithDetails | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<ActionAlertState>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
 
-  const fetchSellers = async () => {
-    try {
-      setLoading(true);
-      const list = await sellerApi.getAllSellers();
-      setSellers(list);
-    } catch (err) {
-      console.error('Failed to load sellers:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchSellersBatch = useCallback(
+    async (offset: number, limit: number) => {
+      return sellerApi.getAllSellers(
+        statusFilter !== 'all' ? statusFilter : undefined,
+        limit,
+        offset
+      );
+    },
+    [statusFilter]
+  );
 
-  useEffect(() => {
-    fetchSellers();
-  }, []);
+  const {
+    items: sellers,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchSellers,
+    sentinelRef,
+  } = useInfiniteList<SellerWithDetails>({
+    fetchFn: fetchSellersBatch,
+    limit: 50,
+    deps: [statusFilter],
+  });
 
   useEffect(() => {
     let result = [...sellers];
-    if (statusFilter !== 'all') {
-      result = result.filter((s) => s.status === statusFilter);
-    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       result = result.filter(
         (s) =>
           s.storeName.toLowerCase().includes(q) ||
           s.userName.toLowerCase().includes(q) ||
-          s.location.toLowerCase().includes(q) ||
-          s.phone.includes(q)
+          s.email?.toLowerCase().includes(q) ||
+          s.location.toLowerCase().includes(q)
       );
     }
     setFilteredSellers(result);
-  }, [sellers, statusFilter, search]);
+  }, [sellers, search]);
 
   const handleApprove = async (id: string) => {
+    const targetSeller = sellers.find((s) => s.userId === id);
     try {
+      setProcessingId(id);
       await sellerApi.approveSeller(id);
       await fetchSellers();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Seller Approved',
+        message: `Seller "${targetSeller?.storeName || 'Merchant'}" has been approved successfully. They can now post and manage their listings.`,
+      });
     } catch (err: any) {
-      alert(err.message || 'Approval failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Approval Failed',
+        message: err.message || 'Unable to approve seller at this time.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleRejectConfirm = async (reason?: string) => {
     if (!rejectTarget || !reason) return;
+    const target = rejectTarget;
     try {
-      await sellerApi.rejectSeller(rejectTarget.userId, reason);
+      setProcessingId(target.userId);
+      await sellerApi.rejectSeller(target.userId, reason);
       setRejectTarget(null);
       await fetchSellers();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Seller Rejected',
+        message: `Seller "${target.storeName}" has been rejected. Reason provided: "${reason}".`,
+      });
     } catch (err: any) {
-      alert(err.message || 'Rejection failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Rejection Failed',
+        message: err.message || 'Unable to reject seller.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleSuspendConfirm = async (reason?: string) => {
     if (!suspendTarget || !reason) return;
+    const target = suspendTarget;
     try {
-      await sellerApi.suspendSeller(suspendTarget.userId, reason);
+      setProcessingId(target.userId);
+      await sellerApi.suspendSeller(target.userId, reason);
       setSuspendTarget(null);
       await fetchSellers();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Store Suspended',
+        message: `Store "${target.storeName}" has been suspended.`,
+      });
     } catch (err: any) {
-      alert(err.message || 'Suspension failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Suspension Failed',
+        message: err.message || 'Unable to suspend seller.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleReinstate = async (id: string) => {
+    const targetSeller = sellers.find((s) => s.userId === id);
     try {
+      setProcessingId(id);
       await sellerApi.reinstateSeller(id);
       await fetchSellers();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Store Reinstated',
+        message: `Store "${targetSeller?.storeName || 'Merchant'}" has been reinstated to active status.`,
+      });
     } catch (err: any) {
-      alert(err.message || 'Reinstatement failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Reinstatement Failed',
+        message: err.message || 'Unable to reinstate seller.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -226,15 +300,18 @@ export const SellerManagementPage: React.FC = () => {
                           <>
                             <button
                               type="button"
+                              disabled={processingId === s.userId}
                               onClick={() => handleApprove(s.userId)}
-                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] rounded-lg transition"
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-[11px] rounded-lg transition-colors flex items-center gap-1"
                             >
-                              Approve
+                              {processingId === s.userId && <Loader2 className="w-3 h-3 animate-spin" />}
+                              {processingId === s.userId ? 'Approving...' : 'Approve'}
                             </button>
                             <button
                               type="button"
+                              disabled={processingId === s.userId}
                               onClick={() => setRejectTarget(s)}
-                              className="px-2 py-1 bg-rose-50 text-rose-700 font-semibold text-[11px] rounded-lg border border-rose-200"
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 disabled:opacity-60 text-rose-700 font-semibold text-[11px] rounded-lg border border-rose-200 transition-colors"
                             >
                               Reject
                             </button>
@@ -244,8 +321,9 @@ export const SellerManagementPage: React.FC = () => {
                         {s.status === 'approved' && (
                           <button
                             type="button"
+                            disabled={processingId === s.userId}
                             onClick={() => setSuspendTarget(s)}
-                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-[11px] rounded-lg border border-amber-200"
+                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 disabled:opacity-60 text-amber-800 font-semibold text-[11px] rounded-lg border border-amber-200 transition-colors"
                           >
                             Suspend
                           </button>
@@ -254,9 +332,11 @@ export const SellerManagementPage: React.FC = () => {
                         {s.status === 'suspended' && (
                           <button
                             type="button"
+                            disabled={processingId === s.userId}
                             onClick={() => handleReinstate(s.userId)}
-                            className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-[11px] rounded-lg border border-emerald-200"
+                            className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-60 text-emerald-800 font-semibold text-[11px] rounded-lg border border-emerald-200 transition-colors flex items-center gap-1"
                           >
+                            {processingId === s.userId && <Loader2 className="w-3 h-3 animate-spin" />}
                             Reinstate
                           </button>
                         )}
@@ -264,9 +344,11 @@ export const SellerManagementPage: React.FC = () => {
                         {s.status === 'rejected' && (
                           <button
                             type="button"
+                            disabled={processingId === s.userId}
                             onClick={() => handleApprove(s.userId)}
-                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[11px] rounded-lg border border-indigo-200"
+                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-60 text-indigo-700 font-semibold text-[11px] rounded-lg border border-indigo-200 transition-colors flex items-center gap-1"
                           >
+                            {processingId === s.userId && <Loader2 className="w-3 h-3 animate-spin" />}
                             Re-approve
                           </button>
                         )}
@@ -278,6 +360,14 @@ export const SellerManagementPage: React.FC = () => {
             </table>
           </div>
         )}
+
+        {/* 50-Item Infinite Scroll Sentinel */}
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          itemCount={sellers.length}
+        />
       </div>
 
       {/* Details View Modal */}
@@ -368,6 +458,15 @@ export const SellerManagementPage: React.FC = () => {
         isDestructive
         onConfirm={handleSuspendConfirm}
         onCancel={() => setSuspendTarget(null)}
+      />
+
+      {/* Action Result Modal */}
+      <ActionAlertModal
+        isOpen={alertState.isOpen}
+        type={alertState.type}
+        title={alertState.title}
+        message={alertState.message}
+        onClose={() => setAlertState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

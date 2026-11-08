@@ -1,28 +1,84 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
   Edit3,
   Trash2,
-  ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import { productApi, categoryApi } from '../../services/api';
 import type { Product, ProductStatus } from '../../types';
 import type { CategoryWithCount } from '../../services/api';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { ActionAlertModal, type ActionAlertState } from '../../components/common/ActionAlertModal';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const ProductManagementPage: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<CategoryWithCount[]>([]);
   const [statusFilter, setStatusFilter] = useState<ProductStatus | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
 
   // Actions
   const [rejectTarget, setRejectTarget] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<ActionAlertState>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
+
+  const fetchProductsBatch = useCallback(
+    async (offset: number, limit: number) => {
+      return productApi.getAllProductsAdmin({
+        status: statusFilter,
+        categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
+        search: search || undefined,
+        limit,
+        offset,
+      });
+    },
+    [statusFilter, categoryFilter, search]
+  );
+
+  const {
+    items: products,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchProducts,
+    sentinelRef,
+  } = useInfiniteList<Product>({
+    fetchFn: fetchProductsBatch,
+    limit: 50,
+    deps: [statusFilter, categoryFilter, search],
+  });
+
+  useEffect(() => {
+    categoryApi.getCategories().then(setCategories).catch(console.error);
+  }, []);
+
+  const renderListingTypeBadge = (type?: string) => {
+    const t = type || 'New spares';
+    let badgeStyle = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (t === 'Posts') {
+      badgeStyle = 'bg-purple-50 text-purple-700 border-purple-200';
+    } else if (t === 'Services') {
+      badgeStyle = 'bg-teal-50 text-teal-700 border-teal-200';
+    } else if (t === 'Repair tools') {
+      badgeStyle = 'bg-sky-50 text-sky-700 border-sky-200';
+    } else if (t === 'Used spares') {
+      badgeStyle = 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${badgeStyle}`}>
+        {t}
+      </span>
+    );
+  };
   const [editTarget, setEditTarget] = useState<Product | null>(null);
 
   // Edit form state
@@ -32,47 +88,52 @@ export const ProductManagementPage: React.FC = () => {
   const [editQuantity, setEditQuantity] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const [list, cats] = await Promise.all([
-        productApi.getAllProductsAdmin({
-          status: statusFilter,
-          categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
-          search: search || undefined,
-        }),
-        categoryApi.getCategories(),
-      ]);
-      setProducts(list);
-      setCategories(cats);
-    } catch (err) {
-      console.error('Failed to load products for admin:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProducts();
-  }, [statusFilter, categoryFilter, search]);
-
   const handleApprove = async (id: string) => {
+    setProcessingId(id);
     try {
       await productApi.approveProduct(id);
       await fetchProducts();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Product Approved Successfully!',
+        message: 'The listing has been approved and published to the marketplace for buyers.',
+      });
     } catch (err: any) {
-      alert(err.message || 'Approval failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Approval Failed',
+        message: err.message || 'An error occurred while approving the product.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleRejectConfirm = async (reason?: string) => {
     if (!rejectTarget || !reason) return;
+    const targetId = rejectTarget.id;
+    setProcessingId(targetId);
     try {
-      await productApi.rejectProduct(rejectTarget.id, reason);
+      await productApi.rejectProduct(targetId, reason);
       setRejectTarget(null);
       await fetchProducts();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Product Rejected',
+        message: 'The listing submission has been rejected with documented feedback.',
+      });
     } catch (err: any) {
-      alert(err.message || 'Rejection failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Rejection Failed',
+        message: err.message || 'An error occurred while rejecting the product.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -191,7 +252,8 @@ export const ProductManagementPage: React.FC = () => {
             <table className="w-full text-left text-xs text-slate-600">
               <thead className="bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Product & Category</th>
+                  <th className="py-3 px-4">Item & Details</th>
+                  <th className="py-3 px-4">Type</th>
                   <th className="py-3 px-4">Merchant</th>
                   <th className="py-3 px-4">Price</th>
                   <th className="py-3 px-4">Stock</th>
@@ -223,9 +285,19 @@ export const ProductManagementPage: React.FC = () => {
                       </div>
                     </td>
 
+                    <td className="py-3 px-4">
+                      {renderListingTypeBadge(p.listingType)}
+                    </td>
+
                     <td className="py-3 px-4 font-medium text-slate-800">{p.sellerName}</td>
 
-                    <td className="py-3 px-4 font-bold text-slate-900">${p.price}</td>
+                    <td className="py-3 px-4 font-bold text-slate-900">
+                      {p.listingType === 'Posts' ? (
+                        <span className="text-slate-400 font-normal">No price (Post)</span>
+                      ) : (
+                        `ETB ${p.price}`
+                      )}
+                    </td>
 
                     <td className="py-3 px-4 font-semibold text-slate-800">{p.quantity}</td>
 
@@ -235,31 +307,24 @@ export const ProductManagementPage: React.FC = () => {
 
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {p.status === 'approved' && (
-                          <Link
-                            to={`/products/${p.id}`}
-                            className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-100"
-                            title="View Public Page"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </Link>
-                        )}
-
                         {p.status === 'pending' && (
                           <button
                             type="button"
+                            disabled={processingId === p.id}
                             onClick={() => handleApprove(p.id)}
-                            className="px-2 py-1 bg-emerald-600 text-white font-semibold text-[11px] rounded-lg"
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-[11px] rounded-lg transition-colors flex items-center gap-1"
                           >
-                            Approve
+                            {processingId === p.id && <Loader2 className="w-3 h-3 animate-spin" />}
+                            {processingId === p.id ? 'Approving...' : 'Approve'}
                           </button>
                         )}
 
                         {p.status !== 'rejected' && (
                           <button
                             type="button"
+                            disabled={processingId === p.id}
                             onClick={() => setRejectTarget(p)}
-                            className="px-2 py-1 bg-rose-50 text-rose-700 font-semibold text-[11px] rounded-lg border border-rose-200"
+                            className="px-2 py-1 bg-rose-50 hover:bg-rose-100 disabled:opacity-60 text-rose-700 font-semibold text-[11px] rounded-lg border border-rose-200 transition-colors"
                           >
                             Reject
                           </button>
@@ -290,6 +355,14 @@ export const ProductManagementPage: React.FC = () => {
             </table>
           </div>
         )}
+
+        {/* 50-Item Infinite Scroll Sentinel */}
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          itemCount={products.length}
+        />
       </div>
 
       {/* Admin Edit Modal */}
@@ -407,6 +480,15 @@ export const ProductManagementPage: React.FC = () => {
         isDestructive
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Action Result Modal */}
+      <ActionAlertModal
+        isOpen={alertState.isOpen}
+        type={alertState.type}
+        title={alertState.title}
+        message={alertState.message}
+        onClose={() => setAlertState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

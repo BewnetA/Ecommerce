@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Phone,
@@ -7,49 +7,86 @@ import {
   CheckCircle2,
   XCircle,
   ArrowLeft,
+  Loader2,
 } from 'lucide-react';
 import { sellerApi } from '../../services/api';
 import type { SellerWithDetails } from '../../services/api';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { ActionAlertModal, type ActionAlertState } from '../../components/common/ActionAlertModal';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const SellerApprovalQueuePage: React.FC = () => {
-  const [pendingSellers, setPendingSellers] = useState<SellerWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
   const [rejectTarget, setRejectTarget] = useState<SellerWithDetails | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<ActionAlertState>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+  });
 
-  const fetchQueue = async () => {
-    try {
-      setLoading(true);
-      const list = await sellerApi.getAllSellers('pending');
-      setPendingSellers(list);
-    } catch (err) {
-      console.error('Failed to load seller approval queue:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchQueue();
+  const fetchSellersBatch = useCallback(async (offset: number, limit: number) => {
+    return sellerApi.getAllSellers('pending', limit, offset);
   }, []);
 
+  const {
+    items: pendingSellers,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchQueue,
+    sentinelRef,
+  } = useInfiniteList<SellerWithDetails>({
+    fetchFn: fetchSellersBatch,
+    limit: 50,
+  });
+
   const handleApprove = async (sellerId: string) => {
+    setProcessingId(sellerId);
     try {
       await sellerApi.approveSeller(sellerId);
       await fetchQueue();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Seller Approved Successfully!',
+        message: 'The seller account has been approved and granted full publishing permissions.',
+      });
     } catch (err: any) {
-      alert(err.message || 'Approval failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Approval Failed',
+        message: err.message || 'An error occurred while approving the seller.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleRejectConfirm = async (reason?: string) => {
     if (!rejectTarget || !reason) return;
+    const targetUserId = rejectTarget.userId;
+    setProcessingId(targetUserId);
     try {
-      await sellerApi.rejectSeller(rejectTarget.userId, reason);
+      await sellerApi.rejectSeller(targetUserId, reason);
       setRejectTarget(null);
       await fetchQueue();
+      setAlertState({
+        isOpen: true,
+        type: 'success',
+        title: 'Seller Application Rejected',
+        message: 'The merchant application has been rejected with documented feedback.',
+      });
     } catch (err: any) {
-      alert(err.message || 'Rejection failed.');
+      setAlertState({
+        isOpen: true,
+        type: 'error',
+        title: 'Rejection Failed',
+        message: err.message || 'An error occurred while rejecting the seller application.',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -142,17 +179,28 @@ export const SellerApprovalQueuePage: React.FC = () => {
               <div className="flex md:flex-col gap-2 shrink-0 justify-end">
                 <button
                   type="button"
+                  disabled={processingId === seller.userId}
                   onClick={() => handleApprove(seller.userId)}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition disabled:opacity-60"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Approve Seller</span>
+                  {processingId === seller.userId ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Approving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve Seller</span>
+                    </>
+                  )}
                 </button>
 
                 <button
                   type="button"
+                  disabled={processingId === seller.userId}
                   onClick={() => setRejectTarget(seller)}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-xl transition border border-rose-200"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs rounded-xl transition border border-rose-200 disabled:opacity-60"
                 >
                   <XCircle className="w-4 h-4" />
                   <span>Reject Application</span>
@@ -163,17 +211,34 @@ export const SellerApprovalQueuePage: React.FC = () => {
         </div>
       )}
 
+      {/* 50-Item Infinite Scroll Sentinel */}
+      <InfiniteScrollSentinel
+        sentinelRef={sentinelRef}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
+        itemCount={pendingSellers.length}
+      />
+
       {/* Reject with Reason Modal */}
       <ConfirmDialog
         isOpen={Boolean(rejectTarget)}
         title="Reject Seller Application"
         message={`Please provide a documented reason for rejecting "${rejectTarget?.storeName}".`}
-        confirmLabel="Reject Application"
+        confirmLabel={processingId === rejectTarget?.userId ? 'Rejecting...' : 'Reject Application'}
         requiresReason
         reasonPlaceholder="e.g. Incomplete business documents, invalid storefront address..."
         isDestructive
         onConfirm={handleRejectConfirm}
         onCancel={() => setRejectTarget(null)}
+      />
+
+      {/* Action Alert Confirmation Popup */}
+      <ActionAlertModal
+        isOpen={alertState.isOpen}
+        type={alertState.type}
+        title={alertState.title}
+        message={alertState.message}
+        onClose={() => setAlertState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -11,13 +11,12 @@ import { productApi, categoryApi } from '../../services/api';
 import type { Product, ProductCondition } from '../../types';
 import type { CategoryWithCount } from '../../services/api';
 import { ProductCard } from '../../components/common/ProductCard';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const ProductListingPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<CategoryWithCount[]>([]);
-  const [loading, setLoading] = useState(true);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Filter state initialized from URL query params
@@ -34,10 +33,63 @@ export const ProductListingPage: React.FC = () => {
     (searchParams.get('sortBy') as any) || 'newest'
   );
 
-  // Sync category & categories
+  // Sync categories
   useEffect(() => {
     categoryApi.getCategories().then(setCategories);
   }, []);
+
+  const fetchProductsBatch = useCallback(
+    async (offset: number, limit: number) => {
+      const qSearch = searchParams.get('search') || '';
+      const qCat = searchParams.get('categoryId') || 'all';
+      const qCond = (searchParams.get('condition') as any) || 'all';
+      const qMin = searchParams.get('minPrice') || '';
+      const qMax = searchParams.get('maxPrice') || '';
+      const qStock = searchParams.get('inStockOnly') === 'true';
+      const qLoc = searchParams.get('location') || '';
+      const qSort = (searchParams.get('sortBy') as any) || 'newest';
+
+      return productApi.getPublicProducts(
+        {
+          search: qSearch || undefined,
+          categoryId: qCat !== 'all' ? qCat : undefined,
+          condition: qCond !== 'all' ? qCond : undefined,
+          minPrice: qMin ? Number(qMin) : undefined,
+          maxPrice: qMax ? Number(qMax) : undefined,
+          inStockOnly: qStock,
+          location: qLoc || undefined,
+          sortBy: qSort,
+        },
+        limit,
+        offset
+      );
+    },
+    [searchParams]
+  );
+
+  const {
+    items: products,
+    loading,
+    loadingMore,
+    hasMore,
+    sentinelRef,
+  } = useInfiniteList<Product>({
+    fetchFn: fetchProductsBatch,
+    limit: 50,
+    deps: [searchParams],
+  });
+
+  // Keep local filter inputs in sync with URL params
+  useEffect(() => {
+    setSearch(searchParams.get('search') || '');
+    setCategoryId(searchParams.get('categoryId') || 'all');
+    setCondition((searchParams.get('condition') as any) || 'all');
+    setMinPrice(searchParams.get('minPrice') || '');
+    setMaxPrice(searchParams.get('maxPrice') || '');
+    setInStockOnly(searchParams.get('inStockOnly') === 'true');
+    setLocation(searchParams.get('location') || '');
+    setSortBy((searchParams.get('sortBy') as any) || 'newest');
+  }, [searchParams]);
 
   // Update URL search params when filters change
   const applyFilters = () => {
@@ -53,50 +105,6 @@ export const ProductListingPage: React.FC = () => {
 
     setSearchParams(params, { replace: true });
   };
-
-  useEffect(() => {
-    // When URL params change, update local states and fetch
-    const qSearch = searchParams.get('search') || '';
-    const qCat = searchParams.get('categoryId') || 'all';
-    const qCond = (searchParams.get('condition') as any) || 'all';
-    const qMin = searchParams.get('minPrice') || '';
-    const qMax = searchParams.get('maxPrice') || '';
-    const qStock = searchParams.get('inStockOnly') === 'true';
-    const qLoc = searchParams.get('location') || '';
-    const qSort = (searchParams.get('sortBy') as any) || 'newest';
-
-    setSearch(qSearch);
-    setCategoryId(qCat);
-    setCondition(qCond);
-    setMinPrice(qMin);
-    setMaxPrice(qMax);
-    setInStockOnly(qStock);
-    setLocation(qLoc);
-    setSortBy(qSort);
-
-    const fetchFiltered = async () => {
-      setLoading(true);
-      try {
-        const results = await productApi.getPublicProducts({
-          search: qSearch || undefined,
-          categoryId: qCat !== 'all' ? qCat : undefined,
-          condition: qCond !== 'all' ? qCond : undefined,
-          minPrice: qMin ? Number(qMin) : undefined,
-          maxPrice: qMax ? Number(qMax) : undefined,
-          inStockOnly: qStock,
-          location: qLoc || undefined,
-          sortBy: qSort,
-        });
-        setProducts(results);
-      } catch (err) {
-        console.error('Error fetching filtered products:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFiltered();
-  }, [searchParams]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -405,11 +413,21 @@ export const ProductListingPage: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {products.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+
+              {/* 50-Item Infinite Scroll Sentinel */}
+              <InfiniteScrollSentinel
+                sentinelRef={sentinelRef}
+                loadingMore={loadingMore}
+                hasMore={hasMore}
+                itemCount={products.length}
+              />
+            </>
           )}
         </div>
       </div>

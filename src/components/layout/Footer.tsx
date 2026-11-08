@@ -1,18 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, HeartHandshake, Truck, RefreshCw } from 'lucide-react';
-import logoImg from '../../assets/ec-logo.png';
-import { useAuth } from '../../features/auth/AuthContext';
+import { ShieldCheck, HeartHandshake, Truck } from 'lucide-react';
+import logoImg from '../../assets/Adiss_Repairs.png';
 
 export const Footer: React.FC = () => {
-  const { resetAllDemoData } = useAuth();
-
-  const handleReset = async () => {
-    if (window.confirm('Reset all demo data back to default initial seed?')) {
-      await resetAllDemoData();
-      window.location.reload();
-    }
-  };
 
   return (
     <footer className="bg-[#292C31] text-slate-400 text-sm mt-auto border-t border-[#363A40]">
@@ -57,24 +48,15 @@ export const Footer: React.FC = () => {
             <div className="w-10 h-10 rounded-xl bg-[#202226] border border-slate-700 p-1 flex items-center justify-center overflow-hidden">
               <img
                 src={logoImg}
-                alt="Addis Repair logo"
-                className="w-full h-full object-contain scale-140"
+                alt="Addis Repairs logo"
+                className="w-full h-full object-contain"
               />
             </div>
-            <span className="text-base font-bold tracking-tight text-white">Addis Repair</span>
+            <span className="text-base font-bold tracking-tight text-white">Addis Repairs</span>
           </div>
           <p className="mt-3 text-xs text-slate-300 leading-relaxed">
             A centralized digital marketplace connecting verified sellers and repair specialists with local buyers. Focused on simplicity, safety, and streamlined communication.
           </p>
-          <div className="mt-4">
-            <button
-              onClick={handleReset}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#202226] hover:bg-[#1a1c1f] text-[#75C96B] border border-slate-700 text-xs font-semibold transition"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Reset Demo Seed Data
-            </button>
-          </div>
         </div>
 
         <div>

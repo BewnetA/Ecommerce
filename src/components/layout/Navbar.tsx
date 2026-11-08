@@ -14,10 +14,9 @@ import {
   ChevronDown,
   Store,
 } from 'lucide-react';
-import logoImg from '../../assets/ec-logo.png';
+import logoImg from '../../assets/Adiss_Repairs.png';
 import { useAuth } from '../../features/auth/AuthContext';
 import { NotificationBell } from '../common/NotificationBell';
-import { DemoSwitcher } from '../common/DemoSwitcher';
 import { isApprovedSeller, isRejectedSeller } from '../../utils/permissions';
 
 export const Navbar: React.FC = () => {
@@ -48,41 +47,21 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
-      {/* Top micro bar for demo controls & quick status */}
-      <div className="bg-[#202226] text-slate-300 px-4 py-1.5 text-xs">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 overflow-hidden text-[11px] truncate">
-            <span className="inline-block w-2 h-2 rounded-full bg-[#75C96B] animate-pulse" />
-            <span className="font-semibold text-white">
-              Addis Repair Platform
-            </span>
-            <span className="hidden sm:inline text-slate-500">|</span>
-            <span className="hidden sm:inline text-slate-400">
-              Verified local merchants, equipment & repair services
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <DemoSwitcher />
-          </div>
-        </div>
-      </div>
-
       {/* Main navigation header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-            <div className="w-10 h-10 rounded-xl bg-[#292C31] border border-slate-700/60 p-1 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform overflow-hidden">
+            <div className="w-10 h-10 rounded-xl bg-[#1b202a] border border-lime-500/30 p-1 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform overflow-hidden">
               <img
                 src={logoImg}
-                alt="Addis Repair logo"
-                className="w-full h-full object-contain scale-140"
+                alt="Addis Repairs logo"
+                className="w-full h-full object-contain"
               />
             </div>
             <div>
               <span className="text-lg font-black tracking-tight text-slate-900 flex items-center gap-0.5">
-                Addis<span className="text-[#23521d] font-extrabold">Repair</span>
+                Addis<span className="text-lime-600 font-extrabold">Repairs</span>
               </span>
               <span className="block text-[10px] font-semibold text-slate-400 -mt-1 tracking-wider uppercase">
                 Marketplace

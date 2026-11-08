@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Search,
   Shield,
@@ -9,31 +9,30 @@ import { userApi } from '../../services/api';
 import type { User, UserRole, AccountStatus } from '../../types';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const UserManagementPage: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([]);
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<AccountStatus | 'all'>('all');
   const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
 
   const [suspendTarget, setSuspendTarget] = useState<User | null>(null);
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const list = await userApi.getAllUsers();
-      setUsers(list);
-    } catch (err) {
-      console.error('Failed to load users:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUsers();
+  const fetchUsersBatch = useCallback(async (offset: number, limit: number) => {
+    return userApi.getAllUsers(limit, offset);
   }, []);
+
+  const {
+    items: users,
+    loading,
+    loadingMore,
+    hasMore,
+    reload: fetchUsers,
+    sentinelRef,
+  } = useInfiniteList<User>({
+    fetchFn: fetchUsersBatch,
+    limit: 50,
+  });
 
   const filtered = users.filter((u) => {
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
@@ -223,6 +222,14 @@ export const UserManagementPage: React.FC = () => {
             </table>
           </div>
         )}
+
+        {/* 50-Item Infinite Scroll Sentinel */}
+        <InfiniteScrollSentinel
+          sentinelRef={sentinelRef}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
+          itemCount={users.length}
+        />
       </div>
 
       <ConfirmDialog
