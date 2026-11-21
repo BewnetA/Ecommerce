@@ -5,17 +5,21 @@ import { useAuth } from '../auth/AuthContext';
 import { messagingApi } from '../../services/api';
 import type { Conversation } from '../../types';
 import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
+import { formatETB } from '../../utils/members';
 
+/**
+ * One inbox for every member: conversations about other members' ads and
+ * inquiries about the member's own ads.
+ */
 export const ConversationListPage: React.FC = () => {
   const { user } = useAuth();
 
-  const isSeller = user?.role === 'seller';
-  const basePath = isSeller ? '/seller/messages' : '/buyer/messages';
+  const basePath = '/account/messages';
 
   const fetchConvsBatch = useCallback(
     async (offset: number, limit: number) => {
       if (!user) return [];
-      return messagingApi.getConversations(user.id, user.role, limit, offset);
+      return messagingApi.getConversations(user.id, limit, offset);
     },
     [user]
   );
@@ -43,10 +47,10 @@ export const ConversationListPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900">
-            {isSeller ? 'Customer Inquiries' : 'My Product Messages'}
+            Messages
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Direct communication regarding product availability, price, and delivery
+            Conversations about other members' ads and inquiries about your own ads
           </p>
         </div>
 
@@ -69,26 +73,24 @@ export const ConversationListPage: React.FC = () => {
             </div>
             <h3 className="text-sm font-bold text-slate-800">No active conversations yet</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {isSeller
-                ? 'When customers inquire about your listings, their messages will appear here.'
-                : 'Browse marketplace listings and click "Message Seller" to begin an inquiry.'}
+              Contact a member from any listing, or wait for members to ask about your ads — every conversation appears here.
             </p>
-            {!isSeller && (
-              <div className="pt-2">
-                <Link
-                  to="/products"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold"
-                >
-                  Explore Catalog
-                </Link>
-              </div>
-            )}
+            <div className="pt-2">
+              <Link
+                to="/products"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold"
+              >
+                Explore Catalog
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {conversations.map((c) => {
-              const otherParty = isSeller ? c.buyerName : c.sellerName;
-              const unread = isSeller ? c.unreadCountSeller : c.unreadCountBuyer;
+              // The member's side is decided per conversation, not per account.
+              const isOwnAd = c.sellerId === user?.id;
+              const otherParty = isOwnAd ? c.buyerName : c.sellerName;
+              const unread = isOwnAd ? c.unreadCountSeller : c.unreadCountBuyer;
 
               return (
                 <Link
@@ -126,7 +128,8 @@ export const ConversationListPage: React.FC = () => {
                       <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 truncate">
                         <span>{c.productName}</span>
                         <span className="text-slate-400">•</span>
-                        <span>${c.productPrice}</span>
+                        <span>{formatETB(c.productPrice)}</span>
+                        {isOwnAd && <span className="text-[10px] font-bold text-lime-700 bg-lime-50 px-1.5 py-0.5 rounded">Your ad</span>}
                       </div>
 
                       <p className="text-xs text-slate-500 truncate mt-1">

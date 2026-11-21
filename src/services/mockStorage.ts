@@ -1,8 +1,6 @@
 import type {
   User,
-  BuyerProfile,
-  SellerProfile,
-  Category,
+  MemberProfile,
   Product,
   Conversation,
   Message,
@@ -12,10 +10,8 @@ import type {
 } from '../types';
 
 import {
-  INITIAL_CATEGORIES,
   INITIAL_USERS,
-  INITIAL_BUYER_PROFILES,
-  INITIAL_SELLER_PROFILES,
+  INITIAL_MEMBER_PROFILES,
   INITIAL_PRODUCTS,
   INITIAL_CONVERSATIONS,
   INITIAL_MESSAGES,
@@ -23,15 +19,17 @@ import {
   INITIAL_REPORTED_ITEMS,
   INITIAL_ACTIVITY_LOGS,
 } from '../data/seedData';
+import { normalizeMemberStatus, normalizeRole } from '../utils/members';
+import { isSupabaseConfigured } from './supabaseClient';
 
-const STORAGE_KEY = 'agora_marketplace_data_v2';
+// v3: unified-member data shape (one member account, no buyer/seller split).
+// Older v2 data used separate buyer and seller records and is not reused.
+const STORAGE_KEY = 'agora_marketplace_data_v3';
 const CURRENT_USER_KEY = 'agora_marketplace_current_user_v2';
 
 export interface StorageSchema {
-  categories: Category[];
   users: User[];
-  buyerProfiles: BuyerProfile[];
-  sellerProfiles: SellerProfile[];
+  memberProfiles: MemberProfile[];
   products: Product[];
   conversations: Conversation[];
   messages: Message[];
@@ -42,10 +40,8 @@ export interface StorageSchema {
 
 function getInitialState(): StorageSchema {
   return {
-    categories: [...INITIAL_CATEGORIES],
     users: [...INITIAL_USERS],
-    buyerProfiles: [...INITIAL_BUYER_PROFILES],
-    sellerProfiles: [...INITIAL_SELLER_PROFILES],
+    memberProfiles: [...INITIAL_MEMBER_PROFILES],
     products: [...INITIAL_PRODUCTS],
     conversations: [...INITIAL_CONVERSATIONS],
     messages: [...INITIAL_MESSAGES],
@@ -56,6 +52,11 @@ function getInitialState(): StorageSchema {
 }
 
 export function loadStorageData(): StorageSchema {
+  // Safety net: when a Supabase project is configured, no code path may read
+  // or write the local demo data.
+  if (isSupabaseConfigured()) {
+    throw new Error('Local demo data is disabled because Supabase is configured.');
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
@@ -65,7 +66,7 @@ export function loadStorageData(): StorageSchema {
     }
     const parsed = JSON.parse(raw) as StorageSchema;
     // Basic verification of schema integrity
-    if (!parsed.products || !parsed.users || !parsed.categories) {
+    if (!parsed.products || !parsed.users || !parsed.memberProfiles) {
       const reset = getInitialState();
       saveStorageData(reset);
       return reset;
@@ -93,11 +94,41 @@ export function resetStorageToDefaults(): StorageSchema {
   return defaults;
 }
 
+/**
+ * Reads the cached signed-in user. Sessions cached by the previous
+ * buyer/seller version are normalized; the cache can never grant approval on
+ * its own — the stored record (or backend) is the source of truth.
+ */
 export function getStoredCurrentUser(): User | null {
   try {
     const raw = localStorage.getItem(CURRENT_USER_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as User;
+    const cached = JSON.parse(raw) as User;
+    const role = normalizeRole(cached.role);
+    // With Supabase the cache is only a session hint; authApi re-reads the
+    // account from Supabase. Demo data is never consulted.
+    if (isSupabaseConfigured()) {
+      return {
+        ...cached,
+        role,
+        status:
+          role === 'admin'
+            ? cached.status === 'suspended'
+              ? 'suspended'
+              : 'approved'
+            : normalizeMemberStatus(cached.status),
+      };
+    }
+    const data = loadStorageData();
+    const stored = data.users.find((u) => u.id === cached.id);
+    if (stored) {
+      return { ...cached, ...stored, role: normalizeRole(stored.role) };
+    }
+    return {
+      ...cached,
+      role,
+      status: role === 'admin' ? 'approved' : normalizeMemberStatus(cached.status),
+    };
   } catch {
     return null;
   }

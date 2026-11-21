@@ -2,6 +2,10 @@ import type { Notification, NotificationType } from '../../types';
 import { loadStorageData, saveStorageData, simulateLatency } from '../mockStorage';
 import { getSupabase } from '../supabaseClient';
 
+/*
+ * When Supabase is configured every call goes to Supabase only; the local
+ * demo store is used solely when no Supabase project is configured.
+ */
 export const notificationApi = {
   async getNotifications(userId: string): Promise<Notification[]> {
     const supabase = getSupabase();
@@ -14,20 +18,23 @@ export const notificationApi = {
           .eq('user_id', userId)
           .order('created_at', { ascending: false });
 
-        if (!error && data) {
-          return data.map((n: any) => ({
-            id: n.id,
-            userId: n.user_id,
-            title: n.title,
-            message: n.message,
-            type: n.type as NotificationType,
-            isRead: Boolean(n.is_read),
-            linkTo: n.link_to,
-            createdAt: n.created_at,
-          }));
+        if (error) {
+          console.warn('Supabase getNotifications error:', error.message);
+          return [];
         }
+        return (data || []).map((n: any) => ({
+          id: n.id,
+          userId: n.user_id,
+          title: n.title,
+          message: n.message,
+          type: n.type as NotificationType,
+          isRead: Boolean(n.is_read),
+          linkTo: n.link_to,
+          createdAt: n.created_at,
+        }));
       } catch (err) {
         console.warn('Supabase getNotifications error:', err);
+        return [];
       }
     }
 
@@ -50,11 +57,14 @@ export const notificationApi = {
           .eq('user_id', userId)
           .eq('is_read', false);
 
-        if (!error && typeof count === 'number') {
-          return count;
+        if (error) {
+          console.warn('Supabase getUnreadCount error:', error.message);
+          return 0;
         }
+        return count || 0;
       } catch (err) {
         console.warn('Supabase getUnreadCount error:', err);
+        return 0;
       }
     }
 
@@ -67,14 +77,9 @@ export const notificationApi = {
     const supabase = getSupabase();
 
     if (supabase) {
-      try {
-        await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('id', notificationId);
-      } catch (err) {
-        console.warn('Supabase markAsRead error:', err);
-      }
+      const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
+      if (error) console.warn('Supabase markAsRead error:', error.message);
+      return;
     }
 
     const data = loadStorageData();
@@ -90,14 +95,9 @@ export const notificationApi = {
     const supabase = getSupabase();
 
     if (supabase) {
-      try {
-        await supabase
-          .from('notifications')
-          .update({ is_read: true })
-          .eq('user_id', userId);
-      } catch (err) {
-        console.warn('Supabase markAllAsRead error:', err);
-      }
+      const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId);
+      if (error) console.warn('Supabase markAllAsRead error:', error.message);
+      return;
     }
 
     const data = loadStorageData();
@@ -131,20 +131,18 @@ export const notificationApi = {
 
     const supabase = getSupabase();
     if (supabase) {
-      try {
-        await supabase.from('notifications').insert({
-          id: newNotif.id,
-          user_id: newNotif.userId,
-          title: newNotif.title,
-          message: newNotif.message,
-          type: newNotif.type,
-          is_read: false,
-          link_to: newNotif.linkTo || null,
-          created_at: now,
-        });
-      } catch (err) {
-        console.warn('Supabase createNotification error:', err);
-      }
+      const { error } = await supabase.from('notifications').insert({
+        id: newNotif.id,
+        user_id: newNotif.userId,
+        title: newNotif.title,
+        message: newNotif.message,
+        type: newNotif.type,
+        is_read: false,
+        link_to: newNotif.linkTo || null,
+        created_at: now,
+      });
+      if (error) throw new Error(error.message);
+      return newNotif;
     }
 
     const data = loadStorageData();

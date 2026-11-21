@@ -10,45 +10,54 @@ import {
   ArrowLeft,
   AlertTriangle,
 } from 'lucide-react';
-import { sellerApi, productApi } from '../../services/api';
-import type { SellerWithDetails } from '../../services/api';
+import { memberApi, productApi } from '../../services/api';
+import type { MemberWithDetails } from '../../services/api';
 import type { Product } from '../../types';
 import { ProductCard } from '../../components/common/ProductCard';
 
-export const SellerProfileViewPage: React.FC = () => {
+/** Public profile of a member and their active ads. */
+export const MemberProfileViewPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [seller, setSeller] = useState<SellerWithDetails | null>(null);
+  const [details, setDetails] = useState<MemberWithDetails | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) return;
-    const loadSellerData = async () => {
+    const loadMemberData = async () => {
       try {
         setLoading(true);
-        const [profile, allSellerProducts] = await Promise.all([
-          sellerApi.getSellerById(id),
-          productApi.getSellerProducts(id),
+        const [memberDetails, publicProducts] = await Promise.all([
+          memberApi.getMemberWithDetails(id),
+          productApi.getMemberProducts(id, { publicOnly: true }),
         ]);
 
-        setSeller(profile);
-        // Only public approved products are shown on public storefront
-        setProducts(allSellerProducts.filter((p) => p.status === 'approved'));
+        // Only verified members have a public profile.
+        setDetails(memberDetails && (memberDetails.user.status === 'approved' || memberDetails.user.role === 'admin') ? memberDetails : null);
+        setProducts(publicProducts);
       } catch (err) {
-        console.error('Error fetching seller storefront:', err);
+        console.error('Error fetching member profile:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    loadSellerData();
+    loadMemberData();
   }, [id]);
+
+  const seller = details
+    ? {
+        ...details.profile,
+        storeName: details.profile.businessName,
+        createdAt: details.user.createdAt,
+      }
+    : null;
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center">
         <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-xs text-slate-500">Loading seller storefront...</p>
+        <p className="text-xs text-slate-500">Loading member profile...</p>
       </div>
     );
   }
@@ -59,9 +68,9 @@ export const SellerProfileViewPage: React.FC = () => {
         <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
           <AlertTriangle className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Seller Not Found</h2>
+        <h2 className="text-xl font-bold text-slate-900">Member Not Found</h2>
         <p className="text-xs text-slate-500">
-          This seller profile may be unavailable or under moderation.
+          This member profile may be unavailable or under review.
         </p>
         <Link
           to="/products"
@@ -85,7 +94,7 @@ export const SellerProfileViewPage: React.FC = () => {
         </Link>
       </div>
 
-      {/* Seller Header Banner Card */}
+      {/* Member Header Banner Card */}
       <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-5">
@@ -103,11 +112,9 @@ export const SellerProfileViewPage: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-extrabold text-slate-900">{seller.storeName}</h1>
-                {seller.status === 'approved' && (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    <ShieldCheck className="w-3.5 h-3.5" /> Verified Store
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Verified Member
+                </span>
               </div>
 
               <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
@@ -137,34 +144,31 @@ export const SellerProfileViewPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Action: Call Seller */}
+          {/* Action: Call Member */}
           <div className="flex items-center gap-3 shrink-0">
             <a
               href={`tel:${seller.phone}`}
               className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition"
             >
               <Phone className="w-4 h-4" />
-              <span>Call Seller ({seller.phone})</span>
+              <span>Call ({seller.phone})</span>
             </a>
           </div>
         </div>
       </div>
 
-      {/* Catalog of approved products from this seller */}
+      {/* Active ads from this member */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Package className="w-5 h-5 text-indigo-600" />
-            Approved Listings ({products.length})
+            <Package className="w-5 h-5 text-lime-600" />
+            Active Ads ({products.length})
           </h2>
-          <span className="text-xs text-slate-400">
-            All items verified by marketplace administration
-          </span>
         </div>
 
         {products.length === 0 ? (
           <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-slate-400 text-sm">
-            This merchant does not currently have any active approved listings.
+            This member does not currently have any active ads.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

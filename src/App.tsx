@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Toaster } from 'sonner';
 
 import { AuthProvider } from './features/auth/AuthContext';
@@ -6,30 +6,22 @@ import { ProtectedRoute } from './app/ProtectedRoute';
 
 // Layouts
 import { PublicLayout } from './layouts/PublicLayout';
-import { BuyerLayout } from './layouts/BuyerLayout';
-import { SellerLayout } from './layouts/SellerLayout';
+import { MemberLayout } from './layouts/MemberLayout';
 import { AdminLayout } from './layouts/AdminLayout';
 
 // Public & Auth Pages
 import { HomePage } from './features/marketplace/HomePage';
 import { ProductListingPage } from './features/marketplace/ProductListingPage';
 import { ProductDetailPage } from './features/marketplace/ProductDetailPage';
-import { CategoryBrowsePage } from './features/marketplace/CategoryBrowsePage';
-import { SellerProfileViewPage } from './features/sellers/SellerProfileViewPage';
+import { MemberProfileViewPage } from './features/members/MemberProfileViewPage';
 import { LoginPage } from './features/auth/LoginPage';
-import { RegisterBuyerPage } from './features/auth/RegisterBuyerPage';
-import { RegisterSellerPage } from './features/auth/RegisterSellerPage';
+import { RegisterMemberPage } from './features/auth/RegisterMemberPage';
+import { VerificationStatusPage } from './features/auth/VerificationStatusPage';
 
-// Buyer Pages
-import { BuyerDashboardPage } from './features/buyers/BuyerDashboardPage';
-import { BuyerProfilePage } from './features/buyers/BuyerProfilePage';
-
-// Seller Pages
-import { SellerDashboardPage } from './features/sellers/SellerDashboardPage';
-import { MyProductsPage } from './features/sellers/MyProductsPage';
-import { AddProductPage } from './features/sellers/AddProductPage';
-import { EditProductPage } from './features/sellers/EditProductPage';
-import { SellerProfileEditPage } from './features/sellers/SellerProfileEditPage';
+// Member Pages (one account: profile, My Ads, Post Ad, messages)
+import { MemberProfilePage } from './features/members/MemberProfilePage';
+import { MyAdsPage } from './features/listings/MyAdsPage';
+import { ListingFormPage } from './features/listings/ListingFormPage';
 
 // Messaging & Notifications
 import { ConversationListPage } from './features/messaging/ConversationListPage';
@@ -38,15 +30,28 @@ import { NotificationsPage } from './features/notifications/NotificationsPage';
 
 // Admin Pages
 import { AdminDashboardPage } from './features/admin/AdminDashboardPage';
-import { SellerApprovalQueuePage } from './features/admin/SellerApprovalQueuePage';
-import { ProductApprovalQueuePage } from './features/admin/ProductApprovalQueuePage';
-import { SellerManagementPage } from './features/admin/SellerManagementPage';
+import { MemberVerificationQueuePage } from './features/admin/MemberVerificationQueuePage';
+import { MemberManagementPage } from './features/admin/MemberManagementPage';
 import { ProductManagementPage } from './features/admin/ProductManagementPage';
-import { BuyerManagementPage } from './features/admin/BuyerManagementPage';
-import { UserManagementPage } from './features/admin/UserManagementPage';
 import { AdminManagementPage } from './features/admin/AdminManagementPage';
 import { AdminReportsPage } from './features/admin/AdminReportsPage';
 import { ReportedItemsPage } from './features/admin/ReportedItemsPage';
+
+/** Keeps old links (notifications, bookmarks) working after the redesign. */
+function LegacyMessageRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/account/messages/${id}` : '/account/messages'} replace />;
+}
+
+function LegacyEditRedirect() {
+  const { id } = useParams();
+  return <Navigate to={id ? `/account/ads/${id}/edit` : '/account/ads'} replace />;
+}
+
+function LegacyMemberRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/members/${id}`} replace />;
+}
 
 export function App() {
   return (
@@ -63,62 +68,57 @@ export function App() {
             <Route path="/home" element={<HomePage />} />
             <Route path="/products" element={<ProductListingPage />} />
             <Route path="/products/:id" element={<ProductDetailPage />} />
-            <Route path="/categories" element={<CategoryBrowsePage />} />
-            <Route path="/sellers/:id" element={<SellerProfileViewPage />} />
-            <Route path="/register/buyer" element={<RegisterBuyerPage />} />
-            <Route path="/register/seller" element={<RegisterSellerPage />} />
+            <Route path="/members/:id" element={<MemberProfileViewPage />} />
+            <Route path="/sellers/:id" element={<LegacyMemberRedirect />} />
+            {/* One registration process for every member */}
+            <Route path="/register" element={<RegisterMemberPage />} />
+            <Route path="/register/buyer" element={<Navigate to="/register" replace />} />
+            <Route path="/register/seller" element={<Navigate to="/register" replace />} />
+            <Route
+              path="/verification-status"
+              element={
+                <ProtectedRoute allowedRoles={['member']}>
+                  <VerificationStatusPage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
-          {/* Buyer Application Routes */}
+          {/* Unified Member Area (approved members; admins may also post) */}
           <Route
-            path="/buyer"
+            path="/account"
             element={
-              <ProtectedRoute allowedRoles={['buyer', 'admin']}>
-                <BuyerLayout />
+              <ProtectedRoute allowedRoles={['member', 'admin']} requireApprovedMember>
+                <MemberLayout />
               </ProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="/buyer/dashboard" replace />} />
-            <Route path="dashboard" element={<BuyerDashboardPage />} />
-            <Route path="profile" element={<BuyerProfilePage />} />
+            <Route index element={<Navigate to="/account/profile" replace />} />
+            <Route path="profile" element={<MemberProfilePage />} />
+            <Route path="ads" element={<MyAdsPage />} />
+            <Route path="ads/new" element={<ListingFormPage />} />
+            <Route path="ads/:id/edit" element={<ListingFormPage />} />
             <Route path="messages" element={<ConversationListPage />} />
             <Route path="messages/:id" element={<ConversationDetailPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
           </Route>
 
-          {/* Seller Application Routes */}
-          <Route
-            path="/seller"
-            element={
-              <ProtectedRoute allowedRoles={['seller', 'admin']}>
-                <SellerLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/seller/dashboard" replace />} />
-            <Route path="dashboard" element={<SellerDashboardPage />} />
-            <Route path="products" element={<MyProductsPage />} />
-            <Route
-              path="products/new"
-              element={
-                <ProtectedRoute allowedRoles={['seller', 'admin']} requireApprovedSeller>
-                  <AddProductPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="products/edit/:id"
-              element={
-                <ProtectedRoute allowedRoles={['seller', 'admin']} requireApprovedSeller>
-                  <EditProductPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="profile" element={<SellerProfileEditPage />} />
-            <Route path="messages" element={<ConversationListPage />} />
-            <Route path="messages/:id" element={<ConversationDetailPage />} />
-            <Route path="notifications" element={<NotificationsPage />} />
-          </Route>
+          {/* Legacy buyer/seller URLs now point to the unified member area */}
+          <Route path="/buyer" element={<Navigate to="/account/profile" replace />} />
+          <Route path="/buyer/dashboard" element={<Navigate to="/account/profile" replace />} />
+          <Route path="/buyer/profile" element={<Navigate to="/account/profile" replace />} />
+          <Route path="/buyer/messages" element={<Navigate to="/account/messages" replace />} />
+          <Route path="/buyer/messages/:id" element={<LegacyMessageRedirect />} />
+          <Route path="/buyer/notifications" element={<Navigate to="/account/notifications" replace />} />
+          <Route path="/seller" element={<Navigate to="/account/ads" replace />} />
+          <Route path="/seller/dashboard" element={<Navigate to="/account/profile" replace />} />
+          <Route path="/seller/products" element={<Navigate to="/account/ads" replace />} />
+          <Route path="/seller/products/new" element={<Navigate to="/account/ads/new" replace />} />
+          <Route path="/seller/products/edit/:id" element={<LegacyEditRedirect />} />
+          <Route path="/seller/profile" element={<Navigate to="/account/profile" replace />} />
+          <Route path="/seller/messages" element={<Navigate to="/account/messages" replace />} />
+          <Route path="/seller/messages/:id" element={<LegacyMessageRedirect />} />
+          <Route path="/seller/notifications" element={<Navigate to="/account/notifications" replace />} />
 
           {/* Administrator Application Routes */}
           <Route
@@ -132,15 +132,19 @@ export function App() {
             <Route index element={<AdminDashboardPage />} />
             <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="admins" element={<AdminManagementPage />} />
-            <Route path="sellers/approvals" element={<SellerApprovalQueuePage />} />
-            <Route path="products/approvals" element={<ProductApprovalQueuePage />} />
-            <Route path="sellers" element={<SellerManagementPage />} />
-            <Route path="products" element={<ProductManagementPage />} />
-            <Route path="categories" element={<Navigate to="/admin/products" replace />} />
-            <Route path="buyers" element={<BuyerManagementPage />} />
-            <Route path="users" element={<UserManagementPage />} />
-            <Route path="reports" element={<AdminReportsPage />} />
+            {/* A. One-time member verification */}
+            <Route path="members/verification" element={<MemberVerificationQueuePage />} />
+            <Route path="members" element={<MemberManagementPage />} />
+            {/* B. Report-driven listing moderation */}
             <Route path="reports/items" element={<ReportedItemsPage />} />
+            <Route path="products" element={<ProductManagementPage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
+            {/* Retired routes from the buyer/seller model */}
+            <Route path="sellers/approvals" element={<Navigate to="/admin/members/verification" replace />} />
+            <Route path="products/approvals" element={<Navigate to="/admin/reports/items" replace />} />
+            <Route path="sellers" element={<Navigate to="/admin/members" replace />} />
+            <Route path="buyers" element={<Navigate to="/admin/members" replace />} />
+            <Route path="users" element={<Navigate to="/admin/members" replace />} />
           </Route>
 
           {/* Fallback */}

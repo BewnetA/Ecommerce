@@ -1,76 +1,44 @@
-import type { User, SellerProfile } from '../types';
+import type { Product, User } from '../types';
 
 /**
- * Returns true if the user is an administrator.
+ * Frontend permission helpers for the unified-member marketplace.
+ *
+ * These only decide what the UI shows. The backend must enforce the same
+ * rules (verification, publishing, editing own listings, reporting and admin
+ * moderation) — the frontend is not the security boundary.
  */
+
 export function isAdminUser(user: User | null): boolean {
   return user?.role === 'admin';
 }
 
-/**
- * Returns true if the user has an approved seller status or is an admin.
- * Admins have full seller capabilities by default without needing separate approval.
- */
-export function isApprovedSeller(user: User | null, sellerProfile: SellerProfile | null): boolean {
+/** Approved members (and administrators) get full marketplace access. */
+export function isApprovedMember(user: User | null): boolean {
   if (!user) return false;
   if (user.role === 'admin') return true;
-  return user.role === 'seller' && sellerProfile?.status === 'approved';
+  return user.status === 'approved';
 }
 
-/**
- * Returns true if the user is a rejected seller applicant.
- */
-export function isRejectedSeller(user: User | null, sellerProfile: SellerProfile | null): boolean {
-  if (!user) return false;
-  if (user.role === 'admin') return false;
-  return sellerProfile?.status === 'rejected' || user.status === 'rejected';
+/** Members whose one-time verification is not (or no longer) approved. */
+export function needsVerificationScreen(user: User | null): boolean {
+  if (!user || user.role === 'admin') return false;
+  return user.status !== 'approved';
 }
 
-/**
- * Returns true if the user has a pending seller application.
- */
-export function isPendingSeller(user: User | null, sellerProfile: SellerProfile | null): boolean {
-  if (!user) return false;
-  if (user.role === 'admin') return false;
-  return (user.role === 'seller' && sellerProfile?.status === 'pending') || user.status === 'pending';
+/** Every approved member can publish listings — no separate seller role. */
+export function canPostListings(user: User | null): boolean {
+  return isApprovedMember(user);
 }
 
-/**
- * Determines if a user can access the seller layout and dashboard.
- * - Admins: Yes
- * - Approved Sellers: Yes
- * - Pending Applicants: Yes (to view pending status)
- * - Rejected Applicants: NO (must behave like ordinary buyers)
- * - Ordinary Buyers: NO
- */
-export function canAccessSellerPortal(user: User | null, sellerProfile: SellerProfile | null): boolean {
+/** Only the owner (or an administrator) can edit or delete a listing. */
+export function canManageListing(user: User | null, product: Pick<Product, 'sellerId'>): boolean {
   if (!user) return false;
   if (user.role === 'admin') return true;
-  if (isRejectedSeller(user, sellerProfile)) return false;
-  return user.role === 'seller' && (sellerProfile?.status === 'approved' || sellerProfile?.status === 'pending');
+  return isApprovedMember(user) && product.sellerId === user.id;
 }
 
-/**
- * Determines if a user can add or edit products.
- * - Admins: Yes
- * - Approved Sellers: Yes
- * - Pending Applicants: NO
- * - Rejected Applicants: NO
- * - Ordinary Buyers: NO
- */
-export function canAddOrEditProducts(user: User | null, sellerProfile: SellerProfile | null): boolean {
-  if (!user) return false;
-  if (user.role === 'admin') return true;
-  return user.role === 'seller' && sellerProfile?.status === 'approved';
-}
-
-/**
- * Determines if a user can access buyer routes and dashboards.
- * - Admins: Yes
- * - Ordinary Buyers: Yes
- * - Rejected Applicants: Yes (they behave like ordinary buyers)
- * - Approved / Pending Sellers: Yes (for their customer shopping/inquiry needs)
- */
-export function canAccessBuyerPortal(user: User | null): boolean {
-  return Boolean(user);
+/** Approved members can report listings they do not own. */
+export function canReportListing(user: User | null, product: Pick<Product, 'sellerId'>): boolean {
+  if (!user || user.role === 'admin') return false;
+  return isApprovedMember(user) && product.sellerId !== user.id;
 }

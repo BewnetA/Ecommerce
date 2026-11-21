@@ -3,10 +3,9 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
-  Store,
   Package,
   Clock,
-  UserCheck,
+  Flag,
   BarChart3,
   Shield,
   LogOut,
@@ -49,38 +48,34 @@ export const AdminLayout: React.FC = () => {
 
   const navItems = [
     { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+    // A. One-time member verification
     {
-      to: '/admin/sellers/approvals',
-      label: 'Seller Approval',
+      to: '/admin/members/verification',
+      label: 'Member Verification',
       icon: Clock,
-      badge: stats && stats.pendingSellerApprovals > 0 ? stats.pendingSellerApprovals : undefined,
+      badge: stats && stats.pendingVerifications > 0 ? stats.pendingVerifications : undefined,
       badgeColor: 'bg-amber-400 text-black',
       exact: true,
     },
     {
-      to: '/admin/products/approvals',
-      label: 'Product Approval',
-      icon: Clock,
-      badge: stats && stats.pendingProductApprovals > 0 ? stats.pendingProductApprovals : undefined,
-      badgeColor: 'bg-amber-400 text-black',
+      to: '/admin/members',
+      label: `Members (${stats?.totalMembers || 0})`,
+      icon: Users,
+      exact: true,
+    },
+    // B. Report-driven listing moderation (no per-listing approval)
+    {
+      to: '/admin/reports/items',
+      label: 'Reported Listings',
+      icon: Flag,
+      badge: stats && stats.openReports > 0 ? stats.openReports : undefined,
+      badgeColor: 'bg-rose-500 text-white',
       exact: true,
     },
     {
       to: '/admin/products',
-      label: `Products (${stats?.totalProducts || 0})`,
+      label: `Listings (${stats?.totalListings || 0})`,
       icon: Package,
-      exact: true,
-    },
-    {
-      to: '/admin/sellers',
-      label: `Seller (${stats?.totalSellers || 0})`,
-      icon: Store,
-      exact: true,
-    },
-    {
-      to: '/admin/buyers',
-      label: 'Buyer',
-      icon: UserCheck,
       exact: true,
     },
     {
@@ -89,12 +84,6 @@ export const AdminLayout: React.FC = () => {
       icon: Shield,
       badge: adminCount,
       badgeColor: 'bg-lime-500/20 text-lime-300 border border-lime-500/30',
-      exact: true,
-    },
-    {
-      to: '/admin/users',
-      label: 'All Users',
-      icon: Users,
       exact: true,
     },
     {
@@ -129,7 +118,7 @@ export const AdminLayout: React.FC = () => {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Centralized Governance, Buyer/Seller Moderation & Platform Control
+                Member Verification, Report Moderation & Platform Control
               </p>
             </div>
           </div>

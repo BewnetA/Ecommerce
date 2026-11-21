@@ -11,39 +11,36 @@ import {
   Package,
   Store,
 } from 'lucide-react';
-import { productApi, categoryApi, sellerApi } from '../../services/api';
+import { productApi, memberApi } from '../../services/api';
 import type { Product } from '../../types';
-import type { CategoryWithCount, SellerWithDetails } from '../../services/api';
+import type { MemberWithDetails } from '../../services/api';
 import { ProductCard } from '../../components/common/ProductCard';
-import { CategoryIcon } from '../../components/common/CategoryIcon';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
   const [popularProducts, setPopularProducts] = useState<Product[]>([]);
-  const [sellers, setSellers] = useState<SellerWithDetails[]>([]);
+  const [members, setMembers] = useState<MemberWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadHomeData = async () => {
       try {
         setLoading(true);
-        const [cats, featured, recent, popular, sellersList] = await Promise.all([
-          categoryApi.getCategories(),
+        const [featured, recent, popular, memberList] = await Promise.all([
           productApi.getFeaturedProducts(),
           productApi.getRecentlyAddedProducts(4),
           productApi.getPopularProducts(4),
-          sellerApi.getAllSellers('approved'),
+          memberApi.getAllMembers('approved'),
         ]);
 
-        setCategories(cats);
         setFeaturedProducts(featured);
         setRecentProducts(recent);
         setPopularProducts(popular);
-        setSellers(sellersList.slice(0, 3));
+        // Spotlight verified members who currently have active ads.
+        setMembers(memberList.filter((m) => m.activeListingCount > 0).slice(0, 3));
       } catch (err) {
         console.error('Error loading homepage data:', err);
       } finally {
@@ -76,14 +73,14 @@ export const HomePage: React.FC = () => {
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
-            Discover Verified Products from <br className="hidden sm:inline" />
+            Spare Parts, Tools & Repair Services from <br className="hidden sm:inline" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-[#75C96B] to-slate-200">
-              Trusted Local Sellers
+              Verified Repair Professionals
             </span>
           </h1>
 
           <p className="max-w-2xl mx-auto text-sm sm:text-base text-slate-300 leading-relaxed">
-            Browse administrator-approved listings, call sellers directly, and coordinate convenient location delivery without complex intermediaries.
+            Browse listings from verified members of the mobile phone repair industry, contact them directly, and find what you need nearby.
           </p>
 
           {/* Hero Search Box */}
@@ -113,7 +110,7 @@ export const HomePage: React.FC = () => {
           <div className="pt-6 flex flex-wrap justify-center items-center gap-6 sm:gap-10 text-xs text-slate-300">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>100% Admin-Reviewed Products</span>
+              <span>Verified Repair-Industry Members</span>
             </div>
             <div className="flex items-center gap-2">
               <Phone className="w-4 h-4 text-sky-400" />
@@ -121,49 +118,9 @@ export const HomePage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-amber-400" />
-              <span>Location-Based Delivery</span>
+              <span>Nearby Discovery</span>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Category Grid Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-              Explore by Category
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              Curated categories vetted for quality and authenticity
-            </p>
-          </div>
-          <Link
-            to="/categories"
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-          >
-            All Categories <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 sm:gap-4">
-          {categories.map((cat) => (
-            <Link
-              key={cat.id}
-              to={`/products?categoryId=${cat.id}`}
-              className="group flex flex-col items-center p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-indigo-400 hover:shadow-lg transition text-center"
-            >
-              <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform mb-2">
-                <CategoryIcon name={cat.slug} className="w-6 h-6" />
-              </div>
-              <span className="text-xs font-semibold text-slate-800 group-hover:text-indigo-600 transition truncate w-full">
-                {cat.name}
-              </span>
-              <span className="text-[10px] text-slate-400 mt-0.5">
-                {cat.productCount} {cat.productCount === 1 ? 'item' : 'items'}
-              </span>
-            </Link>
-          ))}
         </div>
       </section>
 
@@ -179,7 +136,7 @@ export const HomePage: React.FC = () => {
                 Featured Listings
               </h2>
               <p className="text-xs text-slate-500">
-                Top recommendations approved by platform moderation
+                Highlighted listings from verified members
               </p>
             </div>
           </div>
@@ -222,7 +179,7 @@ export const HomePage: React.FC = () => {
                 Recently Added
               </h2>
               <p className="text-xs text-slate-500">
-                Fresh inventory published by approved sellers
+                The latest ads published by verified members
               </p>
             </div>
           </div>
@@ -253,7 +210,7 @@ export const HomePage: React.FC = () => {
                 Popular & High Interest
               </h2>
               <p className="text-xs text-slate-500">
-                Items receiving the highest views and buyer inquiries
+                Listings receiving the most views and inquiries
               </p>
             </div>
           </div>
@@ -272,37 +229,37 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* Verified Sellers Spotlight */}
+      {/* Verified Members Spotlight */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-[#292C31] text-white rounded-3xl p-8 sm:p-10 relative overflow-hidden border border-[#363A40]">
           <div className="max-w-2xl space-y-4 relative z-10">
             <span className="text-xs font-bold uppercase tracking-wider text-[#75C96B]">
-              Verified Merchant Network
+              Verified Member Network
             </span>
             <h3 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Connect Directly with Top Rated Merchants & Technicians
+              Connect Directly with Repair Technicians & Parts Suppliers
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Every merchant on Addis Repair is verified by platform administrators. Transparent contact numbers and physical storefront addresses make local trade reliable and hassle-free.
+              Every member of Addis Repair completes a one-time verification of their connection to the mobile phone repair industry. Contact numbers and shop locations make local trade reliable.
             </p>
           </div>
 
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
-            {sellers.map((s) => (
+            {members.map(({ profile: s, activeListingCount }) => (
               <Link
                 key={s.userId}
-                to={`/sellers/${s.userId}`}
+                to={`/members/${s.userId}`}
                 className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center gap-3 mb-3">
                     <img
                       src={s.logoUrl}
-                      alt={s.storeName}
+                      alt={s.businessName}
                       className="w-10 h-10 rounded-xl object-cover"
                     />
                     <div>
-                      <h4 className="font-semibold text-sm text-white">{s.storeName}</h4>
+                      <h4 className="font-semibold text-sm text-white">{s.businessName}</h4>
                       <p className="text-[11px] text-slate-400 flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-[#75C96B]" />
                         <span className="truncate">{s.location}</span>
@@ -315,26 +272,26 @@ export const HomePage: React.FC = () => {
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-slate-300 font-medium">
-                  <span>{s.approvedProductCount} Approved Listings</span>
+                  <span>{activeListingCount} Active Ads</span>
                   <span className="flex items-center gap-1 text-[#75C96B]">
-                    Storefront <ArrowRight className="w-3 h-3" />
+                    Profile <ArrowRight className="w-3 h-3" />
                   </span>
                 </div>
               </Link>
             ))}
           </div>
 
-          {/* Become a seller CTA */}
+          {/* Join CTA: one registration for every member */}
           <div className="mt-8 pt-6 border-t border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <span className="text-xs text-slate-400">
-              Are you a merchant or repair specialist in Addis Ababa?
+              Work in mobile phone repair? One verified account lets you buy, sell and offer services.
             </span>
             <Link
-              to="/register/seller"
+              to="/register"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#75C96B] hover:bg-[#65b85b] text-[#202226] text-xs font-bold shadow-md transition"
             >
               <Store className="w-4 h-4" />
-              <span>Apply for Seller Account</span>
+              <span>Create Member Account</span>
             </Link>
           </div>
         </div>

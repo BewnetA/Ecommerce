@@ -17,13 +17,15 @@ import {
 import { toast } from 'sonner';
 import { userApi } from '../../services/api';
 import { useAuth } from '../auth/AuthContext';
-import type { User, AccountStatus } from '../../types';
+import type { User } from '../../types';
+import { PasswordVisibilityToggle } from '../../components/common/PasswordVisibilityToggle';
 
 export const AdminManagementPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [admins, setAdmins] = useState<User[]>([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<AccountStatus | 'all'>('all');
+  // Administrator accounts are either active (status `approved`) or suspended.
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
   const [loading, setLoading] = useState(true);
 
   // Modal states
@@ -32,6 +34,7 @@ export const AdminManagementPage: React.FC = () => {
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [newAdminPhone, setNewAdminPhone] = useState('');
   const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [showNewAdminPassword, setShowNewAdminPassword] = useState(false);
   const [newAdminRoleType, setNewAdminRoleType] = useState<'super_admin' | 'moderator'>('super_admin');
   const [formSubmitting, setFormSubmitting] = useState(false);
 
@@ -59,7 +62,8 @@ export const AdminManagementPage: React.FC = () => {
   }, []);
 
   const filteredAdmins = admins.filter((a) => {
-    if (statusFilter !== 'all' && a.status !== statusFilter) return false;
+    if (statusFilter === 'active' && a.status !== 'approved') return false;
+    if (statusFilter === 'suspended' && a.status !== 'suspended') return false;
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return (
@@ -69,7 +73,7 @@ export const AdminManagementPage: React.FC = () => {
     );
   });
 
-  const activeCount = admins.filter((a) => a.status === 'active').length;
+  const activeCount = admins.filter((a) => a.status === 'approved').length;
   const suspendedCount = admins.filter((a) => a.status === 'suspended').length;
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
@@ -94,6 +98,7 @@ export const AdminManagementPage: React.FC = () => {
       setNewAdminEmail('');
       setNewAdminPhone('');
       setNewAdminPassword('');
+      setShowNewAdminPassword(false);
       await fetchAdmins();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create administrator account.');
@@ -114,7 +119,7 @@ export const AdminManagementPage: React.FC = () => {
         await userApi.updateUserStatus(targetUser.id, 'suspended', currentUser || undefined);
         toast.warning(`Administrator "${targetUser.name}" has been suspended.`);
       } else if (action === 'activate') {
-        await userApi.updateUserStatus(targetUser.id, 'active', currentUser || undefined);
+        await userApi.updateUserStatus(targetUser.id, 'approved', currentUser || undefined);
         toast.success(`Administrator "${targetUser.name}" has been activated.`);
       }
       setActionTarget(null);
@@ -439,13 +444,15 @@ export const AdminManagementPage: React.FC = () => {
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                   <input
-                    type="password"
+                    type={showNewAdminPassword ? 'text' : 'password'}
                     required
                     value={newAdminPassword}
                     onChange={(e) => setNewAdminPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30"
+                    autoComplete="new-password"
+                    className="w-full pl-10 pr-10 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30"
                   />
+                  <PasswordVisibilityToggle tone="dark" visible={showNewAdminPassword} onToggle={() => setShowNewAdminPassword((v) => !v)} />
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1">Credentials will grant immediate management privileges</p>
               </div>

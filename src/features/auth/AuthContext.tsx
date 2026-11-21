@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { User, SellerProfile, BuyerProfile } from '../../types';
-import { authApi, sellerApi, userApi } from '../../services/api';
-import type { LoginCredentials, RegisterBuyerData, RegisterSellerData } from '../../services/api';
+import type { User, MemberProfile } from '../../types';
+import { authApi, memberApi } from '../../services/api';
+import type { LoginCredentials, RegisterMemberData } from '../../services/api';
 import { resetStorageToDefaults } from '../../services/mockStorage';
 
 interface DemoUserOption {
@@ -13,13 +13,12 @@ interface DemoUserOption {
 
 interface AuthContextType {
   user: User | null;
-  sellerProfile: SellerProfile | null;
-  buyerProfile: BuyerProfile | null;
+  /** The single member profile (business details + locations). */
+  memberProfile: MemberProfile | null;
   isLoading: boolean;
   demoUsers: DemoUserOption[];
   login: (credentials: LoginCredentials) => Promise<User>;
-  registerBuyer: (data: RegisterBuyerData) => Promise<User>;
-  registerSeller: (data: RegisterSellerData) => Promise<{ user: User; profile: SellerProfile }>;
+  registerMember: (data: RegisterMemberData) => Promise<User>;
   logout: () => Promise<void>;
   switchUser: (userId: string) => Promise<User>;
   refreshUser: () => Promise<void>;
@@ -30,31 +29,21 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
-  const [buyerProfile, setBuyerProfile] = useState<BuyerProfile | null>(null);
+  const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [demoUsers, setDemoUsers] = useState<DemoUserOption[]>([]);
 
-  const loadProfilesForUser = useCallback(async (currentUser: User | null) => {
+  const loadProfileForUser = useCallback(async (currentUser: User | null) => {
     if (!currentUser) {
-      setSellerProfile(null);
-      setBuyerProfile(null);
+      setMemberProfile(null);
       return;
     }
 
     try {
-      if (currentUser.role === 'seller' || currentUser.role === 'admin') {
-        const profile = await sellerApi.getSellerById(currentUser.id);
-        setSellerProfile(profile);
-      } else {
-        setSellerProfile(null);
-      }
-
-      // Load buyer profile for buyers, rejected seller applicants, and admins
-      const { profile: bProfile } = await userApi.getBuyerProfile(currentUser.id);
-      setBuyerProfile(bProfile);
+      const profile = await memberApi.getMemberProfile(currentUser.id);
+      setMemberProfile(profile);
     } catch (err) {
-      console.error('Error loading role profiles for user:', err);
+      console.error('Error loading member profile:', err);
     }
   }, []);
 
@@ -62,13 +51,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const currentUser = await authApi.getCurrentUser();
       setUser(currentUser);
-      await loadProfilesForUser(currentUser);
+      await loadProfileForUser(currentUser);
       const demos = await authApi.getDemoUsers();
       setDemoUsers(demos);
     } catch (err) {
       console.error('Failed to refresh user:', err);
     }
-  }, [loadProfilesForUser]);
+  }, [loadProfileForUser]);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -76,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const currentUser = await authApi.getCurrentUser();
         setUser(currentUser);
-        await loadProfilesForUser(currentUser);
+        await loadProfileForUser(currentUser);
         const demos = await authApi.getDemoUsers();
         setDemoUsers(demos);
       } catch (err) {
@@ -87,43 +76,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     initAuth();
-  }, [loadProfilesForUser]);
+  }, [loadProfileForUser]);
 
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     try {
       const loggedIn = await authApi.login(credentials);
       setUser(loggedIn);
-      await loadProfilesForUser(loggedIn);
+      await loadProfileForUser(loggedIn);
       return loggedIn;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const registerBuyer = async (data: RegisterBuyerData) => {
+  const registerMember = async (data: RegisterMemberData) => {
     setIsLoading(true);
     try {
-      const newUser = await authApi.registerBuyer(data);
+      const newUser = await authApi.registerMember(data);
       setUser(newUser);
-      await loadProfilesForUser(newUser);
+      await loadProfileForUser(newUser);
       const demos = await authApi.getDemoUsers();
       setDemoUsers(demos);
       return newUser;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const registerSeller = async (data: RegisterSellerData) => {
-    setIsLoading(true);
-    try {
-      const res = await authApi.registerSeller(data);
-      setUser(res.user);
-      setSellerProfile(res.profile);
-      const demos = await authApi.getDemoUsers();
-      setDemoUsers(demos);
-      return res;
     } finally {
       setIsLoading(false);
     }
@@ -134,8 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await authApi.logout();
       setUser(null);
-      setSellerProfile(null);
-      setBuyerProfile(null);
+      setMemberProfile(null);
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const switched = await authApi.quickSwitchUser(userId);
       setUser(switched);
-      await loadProfilesForUser(switched);
+      await loadProfileForUser(switched);
       return switched;
     } finally {
       setIsLoading(false);
@@ -157,10 +131,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       resetStorageToDefaults();
-      // Keep admin as default or clear user
       const currentUser = await authApi.getCurrentUser();
       setUser(currentUser);
-      await loadProfilesForUser(currentUser);
+      await loadProfileForUser(currentUser);
       const demos = await authApi.getDemoUsers();
       setDemoUsers(demos);
     } finally {
@@ -172,13 +145,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
-        sellerProfile,
-        buyerProfile,
+        memberProfile,
         isLoading,
         demoUsers,
         login,
-        registerBuyer,
-        registerSeller,
+        registerMember,
         logout,
         switchUser,
         refreshUser,

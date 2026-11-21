@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
@@ -6,22 +6,29 @@ import {
   Trash2,
   Loader2,
 } from 'lucide-react';
-import { productApi, categoryApi } from '../../services/api';
-import type { Product, ProductStatus } from '../../types';
-import type { CategoryWithCount } from '../../services/api';
+import { productApi } from '../../services/api';
+import type { ListingStatus, Product } from '../../types';
+import { useAuth } from '../auth/AuthContext';
+import { formatETB } from '../../utils/members';
+
+type ModerationTarget = { product: Product; action: 'hide' | 'suspend' | 'remove' } | null;
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ActionAlertModal, type ActionAlertState } from '../../components/common/ActionAlertModal';
 import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
+/**
+ * Listing oversight for administrators. Listings are published immediately
+ * by verified members; moderation (hide / suspend / remove / restore) is used
+ * when a listing is reported or otherwise needs attention.
+ */
 export const ProductManagementPage: React.FC = () => {
-  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
-  const [statusFilter, setStatusFilter] = useState<ProductStatus | 'all'>('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const { user: adminUser } = useAuth();
+  const [statusFilter, setStatusFilter] = useState<ListingStatus | 'all'>('all');
   const [search, setSearch] = useState('');
 
   // Actions
-  const [rejectTarget, setRejectTarget] = useState<Product | null>(null);
+  const [moderationTarget, setModerationTarget] = useState<ModerationTarget>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [alertState, setAlertState] = useState<ActionAlertState>({
@@ -35,13 +42,12 @@ export const ProductManagementPage: React.FC = () => {
     async (offset: number, limit: number) => {
       return productApi.getAllProductsAdmin({
         status: statusFilter,
-        categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
         search: search || undefined,
         limit,
         offset,
       });
     },
-    [statusFilter, categoryFilter, search]
+    [statusFilter, search]
   );
 
   const {
@@ -54,12 +60,8 @@ export const ProductManagementPage: React.FC = () => {
   } = useInfiniteList<Product>({
     fetchFn: fetchProductsBatch,
     limit: 50,
-    deps: [statusFilter, categoryFilter, search],
+    deps: [statusFilter, search],
   });
-
-  useEffect(() => {
-    categoryApi.getCategories().then(setCategories).catch(console.error);
-  }, []);
 
   const renderListingTypeBadge = (type?: string) => {
     const t = type || 'New spares';
@@ -84,53 +86,54 @@ export const ProductManagementPage: React.FC = () => {
   // Edit form state
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
-  const [editCategory, setEditCategory] = useState('');
   const [editQuantity, setEditQuantity] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const handleApprove = async (id: string) => {
+  const handleRestore = async (id: string) => {
     setProcessingId(id);
     try {
-      await productApi.approveProduct(id);
+      await productApi.restoreListing(id, adminUser || undefined);
       await fetchProducts();
       setAlertState({
         isOpen: true,
         type: 'success',
-        title: 'Product Approved Successfully!',
-        message: 'The listing has been approved and published to the marketplace for buyers.',
+        title: 'Listing Restored',
+        message: 'The listing is visible in the marketplace again.',
       });
     } catch (err: any) {
       setAlertState({
         isOpen: true,
         type: 'error',
-        title: 'Approval Failed',
-        message: err.message || 'An error occurred while approving the product.',
+        title: 'Restore Failed',
+        message: err.message || 'An error occurred while restoring the listing.',
       });
     } finally {
       setProcessingId(null);
     }
   };
 
-  const handleRejectConfirm = async (reason?: string) => {
-    if (!rejectTarget || !reason) return;
-    const targetId = rejectTarget.id;
-    setProcessingId(targetId);
+  const handleModerationConfirm = async (note?: string) => {
+    if (!moderationTarget || !note) return;
+    const { product, action } = moderationTarget;
+    setProcessingId(product.id);
     try {
-      await productApi.rejectProduct(targetId, reason);
-      setRejectTarget(null);
+      if (action === 'hide') await productApi.hideListing(product.id, note, adminUser || undefined);
+      if (action === 'suspend') await productApi.suspendListing(product.id, note, adminUser || undefined);
+      if (action === 'remove') await productApi.removeListing(product.id, note, adminUser || undefined);
+      setModerationTarget(null);
       await fetchProducts();
       setAlertState({
         isOpen: true,
         type: 'success',
-        title: 'Product Rejected',
-        message: 'The listing submission has been rejected with documented feedback.',
+        title: 'Listing Moderated',
+        message: 'The owner has been notified with your note.',
       });
     } catch (err: any) {
       setAlertState({
         isOpen: true,
         type: 'error',
-        title: 'Rejection Failed',
-        message: err.message || 'An error occurred while rejecting the product.',
+        title: 'Moderation Failed',
+        message: err.message || 'An error occurred while moderating the listing.',
       });
     } finally {
       setProcessingId(null);
@@ -152,7 +155,6 @@ export const ProductManagementPage: React.FC = () => {
     setEditTarget(p);
     setEditName(p.name);
     setEditPrice(String(p.price));
-    setEditCategory(p.categoryId);
     setEditQuantity(String(p.quantity));
   };
 
@@ -164,7 +166,6 @@ export const ProductManagementPage: React.FC = () => {
       await productApi.adminUpdateProduct(editTarget.id, {
         name: editName.trim(),
         price: Number(editPrice),
-        categoryId: editCategory,
         quantity: Number(editQuantity),
       });
       setEditTarget(null);
@@ -180,17 +181,17 @@ export const ProductManagementPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Platform Product Catalog</h2>
+          <h2 className="text-xl font-bold text-slate-900">Marketplace Listings</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Administer all marketplace submissions, verify compliance, or remove inappropriate listings
+            Listings publish immediately. Hide, suspend or remove a listing only when it is reported or needs attention.
           </p>
         </div>
 
         <Link
-          to="/admin/products/approvals"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+          to="/admin/reports/items"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
         >
-          View Pending Product Queue
+          View Reported Listings
         </Link>
       </div>
 
@@ -199,7 +200,7 @@ export const ProductManagementPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           {/* Status Tabs */}
           <div className="flex items-center gap-1">
-            {(['all', 'approved', 'pending', 'rejected'] as const).map((st) => (
+            {(['all', 'active', 'hidden', 'suspended', 'removed'] as const).map((st) => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
@@ -213,20 +214,6 @@ export const ProductManagementPage: React.FC = () => {
               </button>
             ))}
           </div>
-
-          {/* Category Dropdown */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 focus:outline-none"
-          >
-            <option value="all">All Categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
         </div>
 
         <div className="relative flex items-center max-w-xs w-full">
@@ -274,11 +261,11 @@ export const ProductManagementPage: React.FC = () => {
                         <div className="min-w-0 max-w-xs">
                           <span className="font-bold text-slate-900 block truncate">{p.name}</span>
                           <span className="text-[11px] text-slate-500">
-                            {p.categoryName} • ID: {p.id}
+                            ID: {p.id}
                           </span>
-                          {p.rejectionReason && (
+                          {p.moderationNote && (
                             <span className="text-[10px] text-rose-600 block truncate">
-                              Rejection note: {p.rejectionReason}
+                              Moderation note: {p.moderationNote}
                             </span>
                           )}
                         </div>
@@ -295,7 +282,7 @@ export const ProductManagementPage: React.FC = () => {
                       {p.listingType === 'Posts' ? (
                         <span className="text-slate-400 font-normal">No price (Post)</span>
                       ) : (
-                        `ETB ${p.price}`
+                        formatETB(p.price, { startingPrice: p.isStartingPrice })
                       )}
                     </td>
 
@@ -307,26 +294,47 @@ export const ProductManagementPage: React.FC = () => {
 
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {p.status === 'pending' && (
+                        {p.status !== 'active' && (
                           <button
                             type="button"
                             disabled={processingId === p.id}
-                            onClick={() => handleApprove(p.id)}
+                            onClick={() => handleRestore(p.id)}
                             className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-[11px] rounded-lg transition-colors flex items-center gap-1"
                           >
                             {processingId === p.id && <Loader2 className="w-3 h-3 animate-spin" />}
-                            {processingId === p.id ? 'Approving...' : 'Approve'}
+                            Restore
                           </button>
                         )}
 
-                        {p.status !== 'rejected' && (
+                        {p.status === 'active' && (
+                          <>
+                            <button
+                              type="button"
+                              disabled={processingId === p.id}
+                              onClick={() => setModerationTarget({ product: p, action: 'hide' })}
+                              className="px-2 py-1 bg-amber-50 hover:bg-amber-100 disabled:opacity-60 text-amber-800 font-semibold text-[11px] rounded-lg border border-amber-200 transition-colors"
+                            >
+                              Hide
+                            </button>
+                            <button
+                              type="button"
+                              disabled={processingId === p.id}
+                              onClick={() => setModerationTarget({ product: p, action: 'suspend' })}
+                              className="px-2 py-1 bg-orange-50 hover:bg-orange-100 disabled:opacity-60 text-orange-800 font-semibold text-[11px] rounded-lg border border-orange-200 transition-colors"
+                            >
+                              Suspend
+                            </button>
+                          </>
+                        )}
+
+                        {p.status !== 'removed' && (
                           <button
                             type="button"
                             disabled={processingId === p.id}
-                            onClick={() => setRejectTarget(p)}
+                            onClick={() => setModerationTarget({ product: p, action: 'remove' })}
                             className="px-2 py-1 bg-rose-50 hover:bg-rose-100 disabled:opacity-60 text-rose-700 font-semibold text-[11px] rounded-lg border border-rose-200 transition-colors"
                           >
-                            Reject
+                            Remove
                           </button>
                         )}
 
@@ -343,7 +351,7 @@ export const ProductManagementPage: React.FC = () => {
                           type="button"
                           onClick={() => setDeleteTarget(p)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50"
-                          title="Delete Product"
+                          title="Permanently delete listing"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -370,7 +378,7 @@ export const ProductManagementPage: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-base text-slate-900">Admin Edit Product</h3>
+              <h3 className="font-bold text-base text-slate-900">Admin Edit Listing</h3>
               <button onClick={() => setEditTarget(null)} className="text-slate-400">
                 ✕
               </button>
@@ -393,7 +401,7 @@ export const ProductManagementPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Price ($)
+                    Price (ETB)
                   </label>
                   <input
                     type="number"
@@ -420,23 +428,6 @@ export const ProductManagementPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Category
-                </label>
-                <select
-                  value={editCategory}
-                  onChange={(e) => setEditCategory(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
-                >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
@@ -450,7 +441,7 @@ export const ProductManagementPage: React.FC = () => {
                   disabled={isUpdating}
                   className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-xl"
                 >
-                  {isUpdating ? 'Saving...' : 'Save Product Changes'}
+                  {isUpdating ? 'Saving...' : 'Save Listing Changes'}
                 </button>
               </div>
             </form>
@@ -458,24 +449,30 @@ export const ProductManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* Reject Modal */}
+      {/* Moderation Modal (hide / suspend / remove) */}
       <ConfirmDialog
-        isOpen={Boolean(rejectTarget)}
-        title="Reject Product Listing"
-        message={`Provide a reason for rejecting "${rejectTarget?.name}".`}
-        confirmLabel="Reject"
+        isOpen={Boolean(moderationTarget)}
+        title={
+          moderationTarget?.action === 'hide'
+            ? 'Hide Listing'
+            : moderationTarget?.action === 'suspend'
+              ? 'Suspend Listing'
+              : 'Remove Listing'
+        }
+        message={`Provide a note for the owner of "${moderationTarget?.product.name}".`}
+        confirmLabel="Confirm"
         requiresReason
-        reasonPlaceholder="Enter reason..."
+        reasonPlaceholder="Note shown to the listing owner..."
         isDestructive
-        onConfirm={handleRejectConfirm}
-        onCancel={() => setRejectTarget(null)}
+        onConfirm={handleModerationConfirm}
+        onCancel={() => setModerationTarget(null)}
       />
 
       {/* Delete Modal */}
       <ConfirmDialog
         isOpen={Boolean(deleteTarget)}
-        title="Remove Inappropriate Product"
-        message={`Are you sure you want to completely remove "${deleteTarget?.name}" from the platform?`}
+        title="Permanently Delete Listing"
+        message={`Are you sure you want to permanently delete "${deleteTarget?.name}"? This cannot be undone. Prefer "Remove" to keep an audit trail.`}
         confirmLabel="Delete Forever"
         isDestructive
         onConfirm={handleDeleteConfirm}

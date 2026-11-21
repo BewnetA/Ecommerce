@@ -1,11 +1,17 @@
-import type { Conversation, Message, UserRole, LocationSnippet } from '../../types';
+import type { Conversation, ConversationRole, Message, LocationSnippet } from '../../types';
 import { loadStorageData, saveStorageData, simulateLatency } from '../mockStorage';
 import { getSupabase } from '../supabaseClient';
 
+/**
+ * One messaging system for every member. In each conversation one member
+ * owns the listing (`seller*` fields) and the other enquired about it
+ * (`buyer*` fields); the same member can be on either side in different
+ * conversations.
+ */
 export const messagingApi = {
+  /** Every conversation the member takes part in, on either side. */
   async getConversations(
     userId: string,
-    role: UserRole,
     limit: number = 50,
     offset: number = 0
   ): Promise<Conversation[]> {
@@ -13,13 +19,10 @@ export const messagingApi = {
 
     if (supabase) {
       try {
-        let query = supabase.from('conversations').select('*');
-
-        if (role === 'buyer') {
-          query = query.eq('buyer_id', userId);
-        } else if (role === 'seller') {
-          query = query.eq('seller_id', userId);
-        }
+        const query = supabase
+          .from('conversations')
+          .select('*')
+          .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`);
 
         const { data, error } = await query
           .order('last_message_at', { ascending: false })
@@ -56,15 +59,7 @@ export const messagingApi = {
     }
 
     const data = loadStorageData();
-    let convs: Conversation[] = [];
-
-    if (role === 'buyer') {
-      convs = data.conversations.filter((c) => c.buyerId === userId);
-    } else if (role === 'seller') {
-      convs = data.conversations.filter((c) => c.sellerId === userId);
-    } else {
-      convs = [...data.conversations];
-    }
+    const convs = data.conversations.filter((c) => c.buyerId === userId || c.sellerId === userId);
 
     convs.sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
     return simulateLatency(convs.slice(offset, offset + limit), 100);
@@ -113,7 +108,7 @@ export const messagingApi = {
             conversationId: m.conversation_id,
             senderId: m.sender_id,
             senderName: m.sender_name,
-            senderRole: m.sender_role as UserRole,
+            senderRole: m.sender_role as ConversationRole,
             content: m.content,
             deliveryLocationSnippet: m.delivery_location_snippet,
             isRead: m.is_read || false,
@@ -229,14 +224,15 @@ export const messagingApi = {
             created_at: now,
           };
 
-          await supabase
+          const { error: convInsertError } = await supabase
             .from('conversations')
             .insert(newConvPayload);
+          if (convInsertError) throw new Error(convInsertError.message);
         }
 
         if (initialMessage || locationSnippet) {
           const msgId = `msg-${Date.now()}`;
-          await supabase.from('messages').insert({
+          const { error: msgInsertError } = await supabase.from('messages').insert({
             id: msgId,
             conversation_id: convId,
             sender_id: buyerId,
@@ -247,34 +243,36 @@ export const messagingApi = {
             is_read: false,
             created_at: now,
           });
+          if (msgInsertError) throw new Error(msgInsertError.message);
 
           // Insert notification in Supabase
           await supabase.from('notifications').insert({
             id: `notif-${Date.now()}`,
             user_id: sellerId,
-            title: existingConv ? 'New Customer Message' : 'New Product Inquiry',
+            title: existingConv ? 'New Message About Your Ad' : 'New Inquiry About Your Ad',
             message: `${buyerName} sent a message regarding "${productName}".`,
             type: 'new_message',
             is_read: false,
-            link_to: `/seller/messages/${convId}`,
+            link_to: `/account/messages/${convId}`,
             created_at: now,
           });
         }
 
         // Return updated conversation and messages
-        return this.getConversationWithMessages(convId, buyerId);
+        return messagingApi.getConversationWithMessages(convId, buyerId);
       } catch (err) {
         console.warn('Supabase startOrGetConversation error:', err);
+        throw err instanceof Error ? err : new Error('Could not start the conversation. Please try again.');
       }
     }
 
-    // Local storage fallback
+    // Local demo data (only when no Supabase project is configured)
     const data = loadStorageData();
     const product = data.products.find((p) => p.id === productId);
-    const seller = data.sellerProfiles.find((s) => s.userId === sellerId || s.id === sellerId);
+    const owner = data.memberProfiles.find((m) => m.userId === sellerId || m.id === sellerId);
 
-    if (!product) throw new Error('Product not found.');
-    if (!seller) throw new Error('Seller not found.');
+    if (!product) throw new Error('Listing not found.');
+    if (sellerId === buyerId) throw new Error('You cannot start a conversation about your own ad.');
 
     let conversation = data.conversations.find(
       (c) => c.buyerId === buyerId && c.sellerId === sellerId && c.productId === productId
@@ -288,7 +286,7 @@ export const messagingApi = {
         buyerId,
         buyerName,
         sellerId,
-        sellerName: seller.storeName,
+        sellerName: owner?.businessName || product.sellerName,
         productId,
         productName: product.name,
         productImage: product.images[0] || '',
@@ -323,11 +321,11 @@ export const messagingApi = {
       data.notifications.unshift({
         id: `notif-${Date.now()}`,
         userId: sellerId,
-        title: isNew ? 'New Product Inquiry' : 'New Customer Message',
+        title: isNew ? 'New Inquiry About Your Ad' : 'New Message About Your Ad',
         message: `${buyerName} sent a message regarding "${product.name}".`,
         type: 'new_message',
         isRead: false,
-        linkTo: `/seller/messages/${conversation.id}`,
+        linkTo: `/account/messages/${conversation.id}`,
         createdAt: now,
       });
     }
@@ -345,7 +343,8 @@ export const messagingApi = {
     conversationId: string;
     senderId: string;
     senderName: string;
-    senderRole: UserRole;
+    /** The sender's side in THIS conversation (listing owner = seller). */
+    senderRole: ConversationRole;
     content: string;
     locationSnippet?: LocationSnippet;
   }): Promise<Message> {
@@ -382,6 +381,7 @@ export const messagingApi = {
 
         if (error) {
           console.error('Supabase sendMessage error:', error);
+          throw new Error(error.message);
         } else {
           // Get conversation to find recipient
           const { data: convData } = await supabase
@@ -395,14 +395,11 @@ export const messagingApi = {
             await supabase.from('notifications').insert({
               id: `notif-${Date.now()}`,
               user_id: recipientId,
-              title: senderRole === 'buyer' ? 'New Message from Buyer' : 'Seller Replied',
+              title: senderRole === 'buyer' ? 'New Message About Your Ad' : 'New Reply to Your Inquiry',
               message: `${senderName}: ${newMessage.content.slice(0, 80)}`,
               type: 'new_message',
               is_read: false,
-              link_to:
-                senderRole === 'buyer'
-                  ? `/seller/messages/${conversationId}`
-                  : `/buyer/messages/${conversationId}`,
+              link_to: `/account/messages/${conversationId}`,
               created_at: now,
             });
           }
@@ -410,11 +407,11 @@ export const messagingApi = {
         }
       } catch (err) {
         console.error('Supabase sendMessage error:', err);
-        return newMessage;
+        throw err instanceof Error ? err : new Error('Message could not be sent. Please try again.');
       }
     }
 
-    // Update local storage
+    // Local demo data (only when no Supabase project is configured)
     const data = loadStorageData();
     const convIndex = data.conversations.findIndex((c) => c.id === conversationId);
     if (convIndex !== -1) {
@@ -433,14 +430,11 @@ export const messagingApi = {
       data.notifications.unshift({
         id: `notif-${Date.now()}`,
         userId: recipientId,
-        title: senderRole === 'buyer' ? 'New Message from Buyer' : 'Seller Replied',
+        title: senderRole === 'buyer' ? 'New Message About Your Ad' : 'New Reply to Your Inquiry',
         message: `${senderName}: ${newMessage.content.slice(0, 80)}`,
         type: 'new_message',
         isRead: false,
-        linkTo:
-          senderRole === 'buyer'
-            ? `/seller/messages/${conversation.id}`
-            : `/buyer/messages/${conversation.id}`,
+        linkTo: `/account/messages/${conversation.id}`,
         createdAt: now,
       });
 

@@ -6,63 +6,28 @@ A full-featured multi-vendor e-commerce marketplace frontend built with **React 
 
 ## 🌟 Architecture & Features Overview
 
-### 1. Three Core User Roles & Public Marketplace
-- **Public / Guest:**
-  - Responsive marketplace homepage with hero promotions, categories grid, featured products, and popular items.
-  - Category exploration (`/categories`, `/categories/:slug`) with category icons and product counts.
-  - Search and multi-criteria filtering (`/products`) with query search, price range, condition, and sort order.
-  - Dedicated product detail page (`/products/:id`) with image gallery, seller badge, stock status, direct phone dialer (`tel:`), and buyer inquiry modal.
-  - Public seller profile page (`/sellers/:id`) showing seller storefront, location, direct phone call, and their approved product catalog.
-  - **Strict Visibility Rule:** Only approved products belonging to approved sellers are visible publicly or in search results.
+### 1. Unified Member Marketplace (one account for everyone)
+> This replaces the earlier separate Buyer / Seller roles. See [docs/UNIFIED_MEMBER_HANDOFF.md](docs/UNIFIED_MEMBER_HANDOFF.md).
 
-- **Buyer / Customer:**
-  - Registration and authentication (`/register/buyer`, `/login`).
-  - Customer dashboard (`/buyer/dashboard`) and profile manager (`/buyer/profile`).
-  - Permission-based Location Manager (`/buyer/location`):
-    - Browser Geolocation API request triggered only on explicit user click (never on page load).
-    - Manual address entry fallback (Addis Ababa subcity, specific neighborhood, delivery notes).
-    - Confirmation before sharing delivery coordinates with merchants.
-  - Real-time product-related messaging threads (`/messages`, `/messages/:id`) with pre-canned inquiry quick prompts ("Is this available?", "Can you deliver?").
-  - In-app notification center (`/notifications`) with unread counters and direct item links.
-
-- **Seller / Merchant:**
-  - Seller onboarding with store name, phone, email, bio, and business location (`/register/seller`).
-  - Seller starts in `pending` status until reviewed by Platform Admin.
-  - Protected seller portal (`/seller/dashboard`):
-    - Real-time inventory metrics (total products, approved live, pending approval, rejected).
-    - Product management table (`/seller/products`) with status badges and rejection explanation view.
-    - Product creation (`/seller/products/new`) with multi-image support, category taxonomy, condition, stock, and contact info.
-    - Product modification (`/seller/products/:id/edit`): **Re-moderation Rule:** Editing an approved product automatically resets its status to `pending` until re-approved by Admin.
-    - Seller storefront profile settings (`/seller/profile`).
-
-- **Platform Administrator:**
-  - Dedicated governance portal (`/admin`):
-    - Live platform metrics calculated directly from mock storage (total sellers, buyers, products, pending approval queues, approved live).
-    - **Seller Approval Queue (`/admin/sellers/approvals`):** Review merchant applications, approve, or reject with mandatory written reason.
-    - **Product Approval Queue (`/admin/products/approvals`):** Inspect submitted items, price reasonableness, approve, or reject with mandatory reason.
-    - **Seller Management (`/admin/sellers`):** Active/suspended seller toggling, store directory.
-    - **Product Catalog Management (`/admin/products`):** Comprehensive catalog oversight, inline moderation, and deletion.
-    - **Category Taxonomy Management (`/admin/categories`):** Add, update, and delete categories with delete guard (blocks deleting categories with active products).
-    - **Buyer Management (`/admin/buyers`):** Customer directory, inquiry counts, and saved delivery area profiles.
-    - **User Administration (`/admin/users`):** Unified user directory with account status controls.
-    - **Safety Reports & Activity Audit Log (`/admin/reports`, `/admin/reports/items`):** Platform audit events and safety moderation.
+- **Public / Guest:** marketplace home, search with product vs service, New/Used (products only), location and nearby filters, listing detail pages, public member profiles (`/members/:id`).
+- **One registration (`/register`):** personal and contact details, repair-industry connection, one-time verification details, and shop/work location (map coordinates required, chosen on a map or from GPS). New members start as **pending**.
+- **Verification status (`/verification-status`):** pending, rejected and suspended members see their status and cannot message, post or report.
+- **Approved members (`/account/*`):** Profile (with My Ads), Post Ad, Messages and Notifications. Ads publish **immediately**. Owners can edit, hide/show, mark sold out and delete their own ads. Every listing has a **Report** option (reason + optional details); a report never removes a listing by itself.
+- **Administrator (`/admin`):**
+  - **Member Verification** (`/admin/members/verification`): one-time approve or reject.
+  - **Members** (`/admin/members`): approve, reject, suspend, reinstate.
+  - **Reported Listings** (`/admin/reports/items`): reasons, details, report history, listing and owner info, hide/suspend/remove/restore, resolve/dismiss.
+  - **Listings** (`/admin/products`).
+  - Admins, Reports & Audit.
+  - The marketplace has no categories; listings are organised by listing type only.
+  - There is no per-listing approval queue.
+- Old `/buyer/*`, `/seller/*`, `/register/buyer`, `/register/seller` and `/sellers/:id` links redirect to the unified pages.
 
 ---
 
-## 🚀 Pre-Configured Demo Accounts
+## 🚀 Demo Data
 
-A persistent **Demo Account Quick Switcher** is rendered in the top header and bottom bar, allowing instant 1-click role switching between any role without needing to re-type passwords:
-
-| Role | Name | Email | Password | Status / Permissions |
-|---|---|---|---|---|
-| **Platform Admin** | Super Admin | `admin@marketplace.com` | `admin123` | Full governance & moderation access |
-| **Approved Seller** | Dawit Bekele (Addis Electronics) | `dawit@addisstore.com` | `seller123` | Active store, published catalog |
-| **Pending Seller** | Tigist Alemu (Crafted Heritage) | `tigist@heritage.com` | `seller123` | Awaiting admin review |
-| **Rejected Seller** | Kebede Tadesse (Kebede Supplies) | `kebede@supplies.com` | `seller123` | Rejected with recorded reason |
-| **Suspended Seller** | Almaz Wolde (Almaz Textiles) | `almaz@textiles.com` | `seller123` | Suspended due to safety reports |
-| **Buyer / Customer** | Bethlehem Tadesse | `bethlehem@gmail.com` | `buyer123` | Active customer with delivery location |
-
-You can also use the **"Reset Demo Data"** action in the header or bottom banner to instantly restore the mock database to clean factory seed data at any time.
+Mock data lives in `src/data/seedData.ts` and is stored in `localStorage` under a new key, so data from the old buyer/seller version is not reused. Demo members cover the approved, pending, rejected and suspended verification states. Use **"Reset Demo Data"** to restore the seed.
 
 ---
 

@@ -25,14 +25,10 @@ export const DemoSwitcher: React.FC = () => {
     await switchUser(userId);
     if (target?.user.role === 'admin') {
       navigate('/admin');
-    } else if (
-      target?.user.role === 'seller' &&
-      target.sellerStatus !== 'rejected' &&
-      target.user.status !== 'rejected'
-    ) {
-      navigate('/seller/dashboard');
+    } else if (target?.user.status === 'approved') {
+      navigate('/account/profile');
     } else {
-      navigate('/buyer/dashboard');
+      navigate('/verification-status');
     }
   };
 

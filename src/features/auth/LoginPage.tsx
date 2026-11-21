@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   Mail,
   Lock,
@@ -14,6 +14,7 @@ import {
 import { useAuth } from './AuthContext';
 import { authApi } from '../../services/api';
 import logoImg from '../../assets/Adiss_Repairs.png';
+import { PasswordVisibilityToggle } from '../../components/common/PasswordVisibilityToggle';
 
 export const LoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -24,6 +25,7 @@ export const LoginPage: React.FC = () => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,6 +37,8 @@ export const LoginPage: React.FC = () => {
   const [forgotOtp, setForgotOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState('');
   const [forgotNotice, setForgotNotice] = useState('');
@@ -52,12 +56,15 @@ export const LoginPage: React.FC = () => {
 
     try {
       const loggedUser = await login({ email: email.trim(), password });
-      if (loggedUser.role === 'admin' || from.startsWith('/admin')) {
+      if (loggedUser.role === 'admin') {
         navigate('/admin', { replace: true });
-      } else if (loggedUser.role === 'seller' && loggedUser.status !== 'rejected') {
-        navigate('/seller/dashboard', { replace: true });
+      } else if (loggedUser.status !== 'approved') {
+        // Pending, rejected and suspended members only see their status.
+        navigate('/verification-status', { replace: true });
+      } else if (from.startsWith('/account') || from.startsWith('/products') || from.startsWith('/members')) {
+        navigate(from, { replace: true });
       } else {
-        navigate('/admin', { replace: true });
+        navigate('/home', { replace: true });
       }
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
@@ -72,6 +79,8 @@ export const LoginPage: React.FC = () => {
     setForgotOtp('');
     setNewPassword('');
     setConfirmPassword('');
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
     setForgotError('');
     setForgotNotice('');
     setIsForgotModalOpen(true);
@@ -222,12 +231,14 @@ export const LoginPage: React.FC = () => {
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
+                autoComplete="current-password"
+                className="w-full pl-10 pr-10 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
               />
+              <PasswordVisibilityToggle tone="dark" visible={showPassword} onToggle={() => setShowPassword((v) => !v)} />
             </div>
           </div>
 
@@ -240,6 +251,13 @@ export const LoginPage: React.FC = () => {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
+
+        <p className="text-center text-xs text-slate-400 relative z-10">
+          New to Addis Repair?{' '}
+          <Link to="/register" className="text-lime-400 font-semibold hover:underline">
+            Create a member account
+          </Link>
+        </p>
 
         <div className="pt-2 text-center text-[11px] text-slate-500 relative z-10">
           <p className="flex items-center justify-center gap-1.5">
@@ -405,13 +423,15 @@ export const LoginPage: React.FC = () => {
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                     <input
-                      type="password"
+                      type={showNewPassword ? 'text' : 'password'}
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
+                      autoComplete="new-password"
+                      className="w-full pl-10 pr-10 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
                     />
+                    <PasswordVisibilityToggle tone="dark" visible={showNewPassword} onToggle={() => setShowNewPassword((v) => !v)} />
                   </div>
                 </div>
 
@@ -422,13 +442,15 @@ export const LoginPage: React.FC = () => {
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                     <input
-                      type="password"
+                      type={showConfirmPassword ? 'text' : 'password'}
                       required
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-10 pr-3 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
+                      autoComplete="new-password"
+                      className="w-full pl-10 pr-10 py-2.5 text-xs bg-[#101217] text-white rounded-xl border border-[#2a3243] focus:border-lime-400 focus:outline-none focus:ring-1 focus:ring-lime-400/30 placeholder-slate-600 transition"
                     />
+                    <PasswordVisibilityToggle tone="dark" visible={showConfirmPassword} onToggle={() => setShowConfirmPassword((v) => !v)} />
                   </div>
                 </div>
 

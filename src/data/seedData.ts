@@ -1,8 +1,6 @@
 import type {
   User,
-  BuyerProfile,
-  SellerProfile,
-  Category,
+  MemberProfile,
   Product,
   Conversation,
   Message,
@@ -10,83 +8,96 @@ import type {
   ReportedItem,
   ActivityLog,
 } from '../types';
+import {
+  coordinatesForArea,
+  normalizeCondition,
+  normalizeListingStatus,
+  normalizeListingType,
+  normalizeMemberStatus,
+  normalizeReasonCode,
+  reportReasonLabel,
+} from '../utils/members';
 
-export const INITIAL_CATEGORIES: Category[] = [
-  {
-    id: 'cat-1',
-    name: 'Electronics',
-    slug: 'electronics',
-    description: 'Laptops, smartphones, audio gear, and home tech.',
-    iconName: 'Laptop',
-    imageUrl: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=600&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z',
-  },
-  {
-    id: 'cat-2',
-    name: 'Clothing',
-    slug: 'clothing',
-    description: 'Men and women apparel, jackets, and traditional clothing.',
-    iconName: 'Shirt',
-    imageUrl: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=600&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z',
-  },
-  {
-    id: 'cat-3',
-    name: 'Shoes',
-    slug: 'shoes',
-    description: 'Sneakers, formal leather shoes, boots, and casual wear.',
-    iconName: 'Footprints',
-    imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z',
-  },
-  {
-    id: 'cat-4',
-    name: 'Home & Furniture',
-    slug: 'home-furniture',
-    description: 'Modern sofas, ergonomic desks, dining sets, and decor.',
-    iconName: 'Armchair',
-    imageUrl: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z',
-  },
-  {
-    id: 'cat-5',
-    name: 'Beauty',
-    slug: 'beauty',
-    description: 'Skincare, cosmetics, fragrances, and personal grooming.',
-    iconName: 'Sparkles',
-    imageUrl: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z',
-  },
-  {
-    id: 'cat-6',
-    name: 'Accessories',
-    slug: 'accessories',
-    description: 'Watches, leather bags, sunglasses, and jewelry.',
-    iconName: 'Watch',
-    imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z',
-  },
-  {
-    id: 'cat-7',
-    name: 'Food',
-    slug: 'food',
-    description: 'Artisanal coffee beans, organic spices, and gourmet foods.',
-    iconName: 'Utensils',
-    imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z',
-  },
-  {
-    id: 'cat-8',
-    name: 'Other',
-    slug: 'other',
-    description: 'Books, hobby essentials, sports gear, and miscellaneous items.',
-    iconName: 'Package',
-    imageUrl: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z',
-  },
-];
+/*
+ * Mock seed data (frontend development only).
+ *
+ * The original demo records were written for the retired buyer/seller model.
+ * They are kept below as "legacy seed" literals and converted into unified
+ * member accounts, member profiles and listings, so the demo content stays
+ * the same while the data shape follows the unified-member architecture.
+ */
 
-export const INITIAL_USERS: User[] = [
+interface LegacySeedUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: 'admin' | 'seller' | 'buyer';
+  status: 'active' | 'pending' | 'rejected' | 'suspended';
+  avatarUrl?: string;
+  createdAt: string;
+}
+
+interface LegacySeedBuyerProfile {
+  userId: string;
+  bio?: string;
+  deliveryAddress?: string;
+  deliveryCity?: string;
+  deliverySubcity?: string;
+  deliveryNotes?: string;
+  locationCoordinates?: { latitude: number; longitude: number };
+  updatedAt: string;
+}
+
+interface LegacySeedSellerProfile {
+  id: string;
+  userId: string;
+  storeName: string;
+  businessDescription: string;
+  phone: string;
+  email?: string;
+  location: string;
+  logoUrl?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface LegacySeedProduct {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  sellerPhone: string;
+  sellerLocation: string;
+  name: string;
+  description: string;
+  price: number;
+  listingType?: string;
+  condition: string;
+  quantity: number;
+  images: string[];
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  isFeatured?: boolean;
+  viewsCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface LegacySeedReport {
+  id: string;
+  targetType: 'product' | 'user';
+  targetId: string;
+  targetName: string;
+  reporterName: string;
+  reason: string;
+  status: 'pending' | 'resolved' | 'dismissed';
+  resolutionAction?: string;
+  createdAt: string;
+}
+
+const LEGACY_SEED_USERS: LegacySeedUser[] = [
   {
     id: 'user-admin',
     name: 'Platform Administrator',
@@ -159,7 +170,7 @@ export const INITIAL_USERS: User[] = [
   },
 ];
 
-export const INITIAL_BUYER_PROFILES: BuyerProfile[] = [
+const LEGACY_SEED_BUYER_PROFILES: LegacySeedBuyerProfile[] = [
   {
     userId: 'user-buyer-1',
     bio: 'Tech enthusiast and avid reader based in Bole.',
@@ -188,7 +199,7 @@ export const INITIAL_BUYER_PROFILES: BuyerProfile[] = [
   },
 ];
 
-export const INITIAL_SELLER_PROFILES: SellerProfile[] = [
+const LEGACY_SEED_SELLER_PROFILES: LegacySeedSellerProfile[] = [
   {
     id: 'user-admin',
     userId: 'user-admin',
@@ -258,7 +269,7 @@ export const INITIAL_SELLER_PROFILES: SellerProfile[] = [
   },
 ];
 
-export const INITIAL_PRODUCTS: Product[] = [
+const LEGACY_SEED_PRODUCTS: LegacySeedProduct[] = [
   {
     id: 'prod-1',
     sellerId: 'user-seller-approved',
@@ -268,8 +279,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Apple MacBook Pro 14" M3 Pro (18GB / 512GB Space Black)',
     description: 'Brand new in sealed box. 11-core CPU, 14-core GPU, 14.2-inch Liquid Retina XDR display with ProMotion 120Hz. Includes 1-year official warranty, MagSafe 3 charging cable, and power adapter.',
     price: 2450,
-    categoryId: 'cat-1',
-    categoryName: 'Electronics',
     condition: 'new',
     quantity: 5,
     images: [
@@ -291,8 +300,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Sony WH-1000XM5 Wireless Noise Cancelling Headphones',
     description: 'Industry-leading noise cancellation with two processors and 8 microphones. Crystal clear hands-free calling, up to 30-hour battery life with quick charging, ultra-comfortable lightweight design in Silver.',
     price: 380,
-    categoryId: 'cat-1',
-    categoryName: 'Electronics',
     condition: 'new',
     quantity: 12,
     images: [
@@ -314,8 +321,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Apple iPhone 15 Pro Max 256GB Natural Titanium',
     description: 'Forged in titanium, featuring the groundbreaking A17 Pro chip, customizable Action button, and the most powerful iPhone camera system with 5x Telephoto optical zoom.',
     price: 1390,
-    categoryId: 'cat-1',
-    categoryName: 'Electronics',
     condition: 'new',
     quantity: 8,
     images: [
@@ -337,8 +342,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Samsung 55" QLED 4K Smart TV Q60C',
     description: '100% Color Volume with Quantum Dot technology, Quantum HDR, Dual LED backlight, ultra slim AirSlim design, Object Tracking Sound Lite, and Smart Hub with built-in voice assistants.',
     price: 890,
-    categoryId: 'cat-1',
-    categoryName: 'Electronics',
     condition: 'new',
     quantity: 4,
     images: [
@@ -359,8 +362,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Dell XPS 15 9530 Core i7 / 32GB RAM / RTX 4060',
     description: 'High performance creator laptop with 15.6" 3.5K OLED touchscreen display, 13th Gen Intel Core i7-13700H, 1TB NVMe SSD, backlit keyboard, CNC machined aluminum chassis.',
     price: 2100,
-    categoryId: 'cat-1',
-    categoryName: 'Electronics',
     condition: 'like_new',
     quantity: 2,
     images: [
@@ -381,8 +382,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Minimalist Scandinavian Oak Dining Chair Set (2-Piece)',
     description: 'Solid European white oak dining chairs with ergonomic curved backrest and upholstered neutral linen seat cushions. Sturdy, durable, and timeless modern aesthetic.',
     price: 320,
-    categoryId: 'cat-4',
-    categoryName: 'Home & Furniture',
     condition: 'new',
     quantity: 6,
     images: [
@@ -404,8 +403,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Nike Air Max 270 React Optical Running Shoes',
     description: 'Engineered mesh upper for breathability, full dual-density Nike React foam midsole, and large 270 Max Air heel unit for bounce and all-day comfort. Size 42-44 available.',
     price: 160,
-    categoryId: 'cat-3',
-    categoryName: 'Shoes',
     condition: 'new',
     quantity: 15,
     images: [
@@ -426,8 +423,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Premium Classic Wool-Blend Overcoat in Charcoal',
     description: 'Tailored fit winter overcoat crafted from heavy Italian wool blend. Features notched lapels, two exterior flap pockets, inner ticket pocket, and single rear vent.',
     price: 195,
-    categoryId: 'cat-2',
-    categoryName: 'Clothing',
     condition: 'new',
     quantity: 9,
     images: [
@@ -439,7 +434,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     createdAt: '2026-01-13T11:00:00Z',
     updatedAt: '2026-01-13T12:00:00Z',
   },
-  // PENDING PRODUCT AWAITING MODERATION
+  // Published immediately (ordinary listings need no admin approval)
   {
     id: 'prod-pending-1',
     sellerId: 'user-seller-approved',
@@ -447,10 +442,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     sellerPhone: '+251912345678',
     sellerLocation: 'Addis Ababa, Kazanchis',
     name: 'Apple Watch Ultra 2 GPS + Cellular 49mm Titanium',
-    description: 'Rugged titanium case with sapphire front crystal and precision dual-frequency GPS. Up to 36 hours of normal battery life, water resistant to 100m. Submitted for listing approval.',
+    description: 'Rugged titanium case with sapphire front crystal and precision dual-frequency GPS. Up to 36 hours of normal battery life, water resistant to 100m.',
     price: 799,
-    categoryId: 'cat-6',
-    categoryName: 'Accessories',
     condition: 'new',
     quantity: 3,
     images: [
@@ -470,8 +463,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Organic Ethiopian Yirgacheffe Specialty Coffee Beans (1kg)',
     description: 'Grade 1 washed single origin Arabica beans with floral jasmine notes, bright bergamot acidity, and a smooth honey finish. Medium roast freshly packaged.',
     price: 32,
-    categoryId: 'cat-7',
-    categoryName: 'Food',
     condition: 'new',
     quantity: 50,
     images: [
@@ -482,7 +473,7 @@ export const INITIAL_PRODUCTS: Product[] = [
     createdAt: '2026-01-19T09:30:00Z',
     updatedAt: '2026-01-19T09:30:00Z',
   },
-  // REJECTED PRODUCT FOR DEMO (with documented reason)
+  // REMOVED BY MODERATION AFTER A COMMUNITY REPORT (with documented reason)
   {
     id: 'prod-rejected-1',
     sellerId: 'user-seller-approved',
@@ -492,8 +483,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     name: 'Unbranded Replica Swiss Luxury Chronograph Watch',
     description: 'High-grade clone watch with quartz movement and stainless steel strap.',
     price: 85,
-    categoryId: 'cat-6',
-    categoryName: 'Accessories',
     condition: 'new',
     quantity: 10,
     images: [
@@ -506,6 +495,116 @@ export const INITIAL_PRODUCTS: Product[] = [
     updatedAt: '2026-01-14T14:00:00Z',
   },
 ];
+
+/** Demo members with a seller profile record become members with business details. */
+function sellerProfileFor(userId: string): LegacySeedSellerProfile | undefined {
+  return LEGACY_SEED_SELLER_PROFILES.find((s) => s.userId === userId);
+}
+
+/** Splits "Addis Ababa, Kazanchis, Bloom Tech Plaza" into city / area / address. */
+function splitLocation(location: string): { city: string; subCity: string; address?: string } {
+  const parts = location
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const city = parts[0] || 'Addis Ababa';
+  const subCity = (parts[1] || 'Bole').replace(/\s*Sub-City.*$/i, '').trim() || 'Bole';
+  const address = parts.slice(2).join(', ') || undefined;
+  return { city, subCity, address };
+}
+
+export const INITIAL_USERS: User[] = LEGACY_SEED_USERS.map((u): User => {
+  const seller = sellerProfileFor(u.id);
+  // The old seller approval status becomes the one-time member verification.
+  const status = u.role === 'admin' ? 'approved' : normalizeMemberStatus(seller?.status ?? u.status);
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone,
+    role: u.role === 'admin' ? 'admin' : 'member',
+    status,
+    verificationNote: status === 'rejected' || status === 'suspended' ? seller?.rejectionReason : undefined,
+    verification:
+      u.role === 'admin'
+        ? undefined
+        : {
+            industryRole: seller ? 'repair_shop_owner' : 'repair_technician',
+            yearsOfExperience: seller ? 5 : 2,
+            workplaceName: seller?.storeName,
+            industryDescription: seller?.businessDescription || 'Mobile phone repair technician.',
+            idType: 'national_id',
+            idNumber: `FAYDA-${u.phone.slice(-6)}`,
+            submittedAt: u.createdAt,
+          },
+    avatarUrl: u.avatarUrl,
+    createdAt: u.createdAt,
+  };
+});
+
+export const INITIAL_MEMBER_PROFILES: MemberProfile[] = LEGACY_SEED_USERS.map((u): MemberProfile => {
+  const seller = sellerProfileFor(u.id);
+  const buyer = LEGACY_SEED_BUYER_PROFILES.find((b) => b.userId === u.id);
+  const loc = splitLocation(seller?.location || `${buyer?.deliveryCity || 'Addis Ababa'}, ${buyer?.deliverySubcity || 'Bole'}`);
+  const shopCoordinates = coordinatesForArea(loc.subCity);
+  return {
+    id: u.id,
+    userId: u.id,
+    businessName: seller?.storeName || u.name,
+    businessDescription: seller?.businessDescription || buyer?.bio || '',
+    bio: buyer?.bio,
+    phone: seller?.phone || u.phone,
+    email: seller?.email || u.email,
+    city: loc.city,
+    subCity: loc.subCity,
+    addressDescription: loc.address,
+    location: `${loc.subCity}, ${loc.city}`,
+    latitude: seller ? shopCoordinates?.latitude : undefined,
+    longitude: seller ? shopCoordinates?.longitude : undefined,
+    serviceCoverage: 'atLocation',
+    logoUrl: seller?.logoUrl || u.avatarUrl,
+    currentAddress: buyer?.deliveryAddress,
+    currentCity: buyer?.deliveryCity,
+    currentSubcity: buyer?.deliverySubcity,
+    currentNotes: buyer?.deliveryNotes,
+    currentCoordinates: buyer?.locationCoordinates,
+    createdAt: seller?.createdAt || u.createdAt,
+    updatedAt: seller?.updatedAt || buyer?.updatedAt || u.createdAt,
+  };
+});
+
+export const INITIAL_PRODUCTS: Product[] = LEGACY_SEED_PRODUCTS.map((p): Product => {
+  const listingType = normalizeListingType(p.listingType);
+  const loc = splitLocation(p.sellerLocation);
+  const coords = coordinatesForArea(loc.subCity);
+  const status = normalizeListingStatus(p.status);
+  return {
+    id: p.id,
+    sellerId: p.sellerId,
+    sellerName: p.sellerName,
+    sellerPhone: p.sellerPhone,
+    sellerLocation: `${loc.subCity}, ${loc.city}`,
+    name: p.name,
+    description: p.description,
+    price: p.price,
+    listingType,
+    condition: normalizeCondition(p.condition, listingType),
+    quantity: p.quantity,
+    isSoldOut: false,
+    images: p.images,
+    status,
+    moderationNote: status === 'removed' ? p.rejectionReason : undefined,
+    isFeatured: p.isFeatured,
+    viewsCount: p.viewsCount,
+    locationCity: loc.city,
+    locationSubCity: loc.subCity,
+    addressDescription: loc.address,
+    latitude: coords?.latitude,
+    longitude: coords?.longitude,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+  };
+});
 
 export const INITIAL_CONVERSATIONS: Conversation[] = [
   {
@@ -609,76 +708,56 @@ export const INITIAL_NOTIFICATIONS: Notification[] = [
   {
     id: 'notif-1',
     userId: 'user-seller-approved',
-    title: 'Seller Application Approved!',
-    message: 'Congratulations! Your store BlueNile Electronics & Tech has been reviewed and approved by the administrator. You can now publish products.',
-    type: 'seller_approved',
+    title: 'Account Verified!',
+    message: 'Your Addis Repair member account has been verified. You can now post ads, contact members and manage your listings.',
+    type: 'member_approved',
     isRead: true,
-    linkTo: '/seller/dashboard',
+    linkTo: '/account/profile',
     createdAt: '2026-01-06T10:00:00Z',
-  },
-  {
-    id: 'notif-2',
-    userId: 'user-seller-approved',
-    title: 'Product Approved',
-    message: 'Your product "Sony WH-1000XM5 Wireless Headphones" has been reviewed and approved for public marketplace listing.',
-    type: 'product_approved',
-    isRead: true,
-    linkTo: '/seller/products',
-    createdAt: '2026-01-07T14:15:00Z',
   },
   {
     id: 'notif-3',
     userId: 'user-seller-approved',
-    title: 'New Customer Inquiry',
+    title: 'New Inquiry About Your Ad',
     message: 'Abebe Kebede sent an inquiry regarding "Apple MacBook Pro 14\\" M3 Pro".',
     type: 'new_message',
     isRead: false,
-    linkTo: '/seller/messages/conv-2',
+    linkTo: '/account/messages/conv-2',
     createdAt: '2026-01-19T09:10:00Z',
   },
   {
     id: 'notif-4',
     userId: 'user-buyer-1',
-    title: 'Seller Replied to Your Inquiry',
-    message: 'BlueNile Electronics confirmed delivery for your Sony WH-1000XM5 inquiry.',
+    title: 'New Reply to Your Inquiry',
+    message: 'BlueNile Electronics replied to your Sony WH-1000XM5 inquiry.',
     type: 'new_message',
     isRead: true,
-    linkTo: '/buyer/messages/conv-1',
+    linkTo: '/account/messages/conv-1',
     createdAt: '2026-01-18T16:20:00Z',
   },
   {
     id: 'notif-5',
     userId: 'user-seller-rejected',
-    title: 'Seller Application Rejected',
-    message: 'Your seller account was rejected: Incomplete business registration certificate.',
-    type: 'seller_rejected',
+    title: 'Verification Not Approved',
+    message: 'Your member verification was not approved: Incomplete business registration certificate.',
+    type: 'member_rejected',
     isRead: false,
-    linkTo: '/seller/dashboard',
+    linkTo: '/verification-status',
     createdAt: '2026-01-13T16:00:00Z',
   },
   {
     id: 'notif-6',
     userId: 'user-admin',
-    title: 'Pending Seller Application',
-    message: 'New seller "Habesha Handmade Crafts & Fashion" registered and requires approval.',
+    title: 'Member Awaiting Verification',
+    message: 'New member "Bethlehem Tadesse" registered and is waiting for one-time verification.',
     type: 'system',
     isRead: false,
-    linkTo: '/admin/sellers/approvals',
+    linkTo: '/admin/members/verification',
     createdAt: '2026-01-18T14:30:00Z',
-  },
-  {
-    id: 'notif-7',
-    userId: 'user-admin',
-    title: 'New Product Submissions Pending',
-    message: '2 products are awaiting moderator review in the product approval queue.',
-    type: 'system',
-    isRead: false,
-    linkTo: '/admin/products/approvals',
-    createdAt: '2026-01-19T09:30:00Z',
   },
 ];
 
-export const INITIAL_REPORTED_ITEMS: ReportedItem[] = [
+const LEGACY_SEED_REPORTS: LegacySeedReport[] = [
   {
     id: 'rep-1',
     targetType: 'product',
@@ -699,6 +778,40 @@ export const INITIAL_REPORTED_ITEMS: ReportedItem[] = [
     reason: 'Seller refused to honor stated warranty and sent defective refurbished unit.',
     status: 'pending',
     createdAt: '2026-01-18T11:00:00Z',
+  },
+];
+
+export const INITIAL_REPORTED_ITEMS: ReportedItem[] = [
+  ...LEGACY_SEED_REPORTS.map((r): ReportedItem => {
+    const reasonCode = normalizeReasonCode(undefined, r.reason);
+    return {
+      id: r.id,
+      targetType: r.targetType,
+      targetId: r.targetId,
+      targetName: r.targetName,
+      listingOwnerId: r.targetType === 'product' ? 'user-seller-approved' : undefined,
+      reporterName: r.reporterName,
+      reasonCode,
+      reason: reportReasonLabel(reasonCode),
+      details: r.reason,
+      status: r.status,
+      resolutionAction: r.resolutionAction,
+      createdAt: r.createdAt,
+    };
+  }),
+  {
+    id: 'rep-3',
+    targetType: 'product',
+    targetId: 'prod-pending-2',
+    targetName: 'Organic Ethiopian Yirgacheffe Specialty Coffee Beans (1kg)',
+    listingOwnerId: 'user-seller-approved',
+    reporterId: 'user-buyer-2',
+    reporterName: 'Abebe Kebede',
+    reasonCode: 'incorrect_information',
+    reason: reportReasonLabel('incorrect_information'),
+    details: 'This is not a phone repair item and the description does not match the photos.',
+    status: 'pending',
+    createdAt: '2026-01-19T12:00:00Z',
   },
 ];
 

@@ -13,16 +13,25 @@ import {
   Navigation,
   CheckCircle2,
 } from 'lucide-react';
-import { productApi, messagingApi, reportsApi } from '../../services/api';
+import { productApi, messagingApi } from '../../services/api';
 import type { Product, LocationSnippet } from '../../types';
 import { useAuth } from '../auth/AuthContext';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import { ReportListingModal } from '../reports/ReportListingModal';
+import { CONDITION_LABELS, formatETB, isProductListing, isServiceListing } from '../../utils/members';
+import { isApprovedMember } from '../../utils/permissions';
+
+const COVERAGE_LABELS: Record<string, string> = {
+  atLocation: 'At provider location',
+  travelsToCustomer: 'Travels to customer',
+  selectedAreas: 'Serves selected areas',
+};
 
 export const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, buyerProfile } = useAuth();
+  const { user, memberProfile } = useAuth();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedImage, setSelectedImage] = useState<string>('');
@@ -38,8 +47,6 @@ export const ProductDetailPage: React.FC = () => {
 
   // Report modal state
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [reportReason, setReportReason] = useState('');
-  const [reportSuccess, setReportSuccess] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -48,7 +55,7 @@ export const ProductDetailPage: React.FC = () => {
         setLoading(true);
         const item = await productApi.getProductById(id);
         if (!item) {
-          setError('Product not found or has been removed.');
+          setError('Listing not found or has been removed.');
           return;
         }
         setProduct(item);
@@ -63,45 +70,59 @@ export const ProductDetailPage: React.FC = () => {
     fetchProduct();
   }, [id]);
 
-  const formatPrice = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(amount);
+  const formatPrice = (amount: number) =>
+    formatETB(amount, { startingPrice: Boolean(product && isServiceListing(product.listingType) && product.isStartingPrice) });
+
+  const savedLocationText = memberProfile?.currentAddress || memberProfile?.addressDescription || memberProfile?.location;
+
+  /** Contacting members and reporting are approved-member features. */
+  const requireApprovedMember = (redirectTo: string): boolean => {
+    if (!user) {
+      navigate('/login', { state: { from: { pathname: redirectTo } } });
+      return false;
+    }
+    if (!isApprovedMember(user)) {
+      navigate('/verification-status');
+      return false;
+    }
+    return true;
   };
 
-  const conditionLabels: Record<string, string> = {
-    new: 'Brand New (Sealed)',
-    like_new: 'Like New (Mint)',
-    good: 'Good Condition',
-    fair: 'Fair / Usable',
+  const openInquiry = () => {
+    if (!product || !requireApprovedMember(`/products/${product.id}`)) return;
+    setInquiryModalOpen(true);
+  };
+
+  const openReport = () => {
+    if (!product || !requireApprovedMember(`/products/${product.id}`)) return;
+    if (user && user.id === product.sellerId) {
+      alert('This is your own ad. You can edit, hide or delete it from My Ads.');
+      return;
+    }
+    setReportModalOpen(true);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!product) return;
 
-    if (!user) {
-      navigate('/login', { state: { from: `/products/${product.id}?contact=true` } });
-      return;
-    }
+    if (!requireApprovedMember(`/products/${product.id}`) || !user) return;
 
     if (user.id === product.sellerId) {
-      alert("You cannot message yourself about your own product.");
+      alert('You cannot message yourself about your own ad.');
       return;
     }
 
     setIsSending(true);
     try {
       let locationSnippet: LocationSnippet | undefined = undefined;
-      if (includeLocation && buyerProfile?.deliveryAddress) {
+      if (includeLocation && savedLocationText) {
         locationSnippet = {
-          address: buyerProfile.deliveryAddress,
-          city: buyerProfile.deliveryCity || 'Addis Ababa',
-          subcity: buyerProfile.deliverySubcity || '',
-          notes: buyerProfile.deliveryNotes || '',
-          coordinates: buyerProfile.locationCoordinates,
+          address: savedLocationText,
+          city: memberProfile?.currentCity || memberProfile?.city || 'Addis Ababa',
+          subcity: memberProfile?.currentSubcity || memberProfile?.subCity || '',
+          notes: memberProfile?.currentNotes || '',
+          coordinates: memberProfile?.currentCoordinates,
         };
       }
 
@@ -118,7 +139,7 @@ export const ProductDetailPage: React.FC = () => {
       setTimeout(() => {
         setInquiryModalOpen(false);
         setInquirySuccess(false);
-        navigate(`/buyer/messages/${res.conversation.id}`);
+        navigate(`/account/messages/${res.conversation.id}`);
       }, 1000);
     } catch (err: any) {
       alert(err.message || 'Failed to send message.');
@@ -127,28 +148,6 @@ export const ProductDetailPage: React.FC = () => {
     }
   };
 
-  const handleReportSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!product || !reportReason.trim()) return;
-
-    try {
-      await reportsApi.reportItem({
-        targetType: 'product',
-        targetId: product.id,
-        targetName: product.name,
-        reporterName: user?.name || 'Anonymous Visitor',
-        reason: reportReason.trim(),
-      });
-      setReportSuccess(true);
-      setTimeout(() => {
-        setReportModalOpen(false);
-        setReportSuccess(false);
-        setReportReason('');
-      }, 1500);
-    } catch (err: any) {
-      alert(err.message || 'Failed to submit report.');
-    }
-  };
 
   if (loading) {
     return (
@@ -159,15 +158,19 @@ export const ProductDetailPage: React.FC = () => {
     );
   }
 
-  if (error || !product) {
+  // Only active listings are public; owners and admins can still open theirs.
+  const canView =
+    product && (product.status === 'active' || user?.role === 'admin' || user?.id === product.sellerId);
+
+  if (error || !product || !canView) {
     return (
       <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-4">
         <div className="w-16 h-16 rounded-3xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
           <AlertTriangle className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900">{error || 'Product Not Found'}</h2>
+        <h2 className="text-xl font-bold text-slate-900">{error || 'Listing Not Available'}</h2>
         <p className="text-xs text-slate-500">
-          This product may have been delisted, rejected, or awaiting moderation approval.
+          This listing may have been hidden or removed.
         </p>
         <Link
           to="/products"
@@ -188,19 +191,15 @@ export const ProductDetailPage: React.FC = () => {
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Catalog
           </Link>
           <span>/</span>
-          <Link to={`/products?categoryId=${product.categoryId}`} className="hover:text-indigo-600">
-            {product.categoryName}
-          </Link>
-          <span>/</span>
           <span className="text-slate-800 font-semibold truncate max-w-[200px]">
             {product.name}
           </span>
         </div>
 
         <button
-          onClick={() => setReportModalOpen(true)}
+          onClick={openReport}
           className="text-slate-400 hover:text-rose-600 flex items-center gap-1 transition"
-          title="Report this listing to administrators"
+          title="Report this listing to the moderation team"
         >
           <Flag className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Report Listing</span>
@@ -217,11 +216,20 @@ export const ProductDetailPage: React.FC = () => {
               alt={product.name}
               className="w-full h-full object-cover object-center"
             />
-            {product.status !== 'approved' && (
-              <div className="absolute top-4 left-4">
-                <StatusBadge status={product.status} />
-              </div>
-            )}
+            <div className="absolute top-4 left-4 flex gap-2">
+              {isServiceListing(product.listingType) ? (
+                <span className="px-2.5 py-1 rounded-full text-xs font-black bg-teal-600 text-white shadow">SERVICE</span>
+              ) : product.condition ? (
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs font-black text-white shadow ${
+                    product.condition === 'new' ? 'bg-emerald-600' : 'bg-amber-600'
+                  }`}
+                >
+                  {CONDITION_LABELS[product.condition].toUpperCase()}
+                </span>
+              ) : null}
+              {product.status !== 'active' && <StatusBadge status={product.status} />}
+            </div>
           </div>
 
           {/* Thumbnails */}
@@ -248,7 +256,7 @@ export const ProductDetailPage: React.FC = () => {
             <div>
               <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
-                  {product.categoryName}
+                  {product.listingType}
                 </span>
                 <span className="flex items-center gap-1 text-xs text-slate-400">
                   <Eye className="w-3.5 h-3.5" />
@@ -265,7 +273,9 @@ export const ProductDetailPage: React.FC = () => {
                   <span className="text-3xl font-black text-indigo-600">
                     {formatPrice(product.price)}
                   </span>
-                  <span className="text-xs text-slate-500">Fixed/Direct Price</span>
+                  <span className="text-xs text-slate-500">
+                    {isServiceListing(product.listingType) && product.isStartingPrice ? 'Starting price' : 'Direct price'}
+                  </span>
                 </div>
               ) : (
                 <div className="mt-4 flex items-center gap-2">
@@ -278,20 +288,55 @@ export const ProductDetailPage: React.FC = () => {
 
             {/* Spec list */}
             <div className="grid grid-cols-2 gap-3 py-4 border-y border-slate-100 text-xs">
-              <div>
-                <span className="text-slate-400 block mb-0.5">Condition</span>
-                <span className="font-semibold text-slate-800">
-                  {conditionLabels[product.condition] || product.condition}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block mb-0.5">Availability</span>
-                <span
-                  className={`font-semibold ${
-                    product.quantity > 0 ? 'text-emerald-600' : 'text-rose-600'
-                  }`}
-                >
-                  {product.quantity > 0 ? `In Stock (${product.quantity} available)` : 'Out of Stock'}
+              {isProductListing(product.listingType) ? (
+                <>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Condition</span>
+                    <span className="font-semibold text-slate-800">
+                      {product.condition ? CONDITION_LABELS[product.condition] : '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Availability</span>
+                    <span
+                      className={`font-semibold ${
+                        !product.isSoldOut && product.quantity > 0 ? 'text-emerald-600' : 'text-rose-600'
+                      }`}
+                    >
+                      {!product.isSoldOut && product.quantity > 0
+                        ? `In Stock (${product.quantity} available)`
+                        : 'Sold Out'}
+                    </span>
+                  </div>
+                </>
+              ) : isServiceListing(product.listingType) ? (
+                <>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Listing Type</span>
+                    <span className="font-semibold text-teal-700">Repair Service</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">Service Coverage</span>
+                    <span className="font-semibold text-slate-800">
+                      {COVERAGE_LABELS[product.serviceCoverage || 'atLocation']}
+                    </span>
+                  </div>
+                  {product.serviceCoverageNote && (
+                    <div className="col-span-2 text-slate-600">{product.serviceCoverageNote}</div>
+                  )}
+                </>
+              ) : (
+                <div className="col-span-2">
+                  <span className="text-slate-400 block mb-0.5">Listing Type</span>
+                  <span className="font-semibold text-slate-800">{product.listingType}</span>
+                </div>
+              )}
+              <div className="col-span-2">
+                <span className="text-slate-400 block mb-0.5">Location</span>
+                <span className="font-semibold text-slate-800 flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                  {product.locationSubCity}, {product.locationCity}
+                  {product.addressDescription ? ` • ${product.addressDescription}` : ''}
                 </span>
               </div>
             </div>
@@ -314,34 +359,41 @@ export const ProductDetailPage: React.FC = () => {
                   className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-md shadow-emerald-600/20 transition"
                 >
                   <Phone className="w-4 h-4" />
-                  <span>Call Seller</span>
+                  <span>Call</span>
                 </a>
 
                 <button
                   type="button"
-                  onClick={() => setInquiryModalOpen(true)}
+                  onClick={openInquiry}
                   className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#75C96B] hover:bg-[#65b85b] text-[#202226] font-bold text-xs sm:text-sm shadow-md shadow-[#75C96B]/20 transition"
                 >
                   <MessageSquare className="w-4 h-4" />
-                  <span>Message Seller</span>
+                  <span>Message</span>
                 </button>
               </div>
 
               <p className="text-[11px] text-center text-slate-400">
-                Direct peer-to-peer inquiry. No upfront payments or checkout commission required.
+                Direct member-to-member contact. No upfront payments or checkout.
               </p>
+              <button
+                type="button"
+                onClick={openReport}
+                className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-rose-600 hover:text-rose-700"
+              >
+                <Flag className="w-3.5 h-3.5" /> Report this listing
+              </button>
             </div>
           </div>
 
           {/* Seller Profile Card */}
           <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">
-              Merchant Information
+              Posted By
             </h3>
 
             <div className="flex items-start gap-4">
               <Link
-                to={`/sellers/${product.sellerId}`}
+                to={`/members/${product.sellerId}`}
                 className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center overflow-hidden shrink-0 hover:opacity-90 transition"
               >
                 <img
@@ -354,12 +406,12 @@ export const ProductDetailPage: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
                   <Link
-                    to={`/sellers/${product.sellerId}`}
+                    to={`/members/${product.sellerId}`}
                     className="font-bold text-sm text-slate-900 hover:text-indigo-600 transition truncate"
                   >
                     {product.sellerName}
                   </Link>
-                  <span title="Verified Merchant">
+                  <span title="Verified Member">
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                   </span>
                 </div>
@@ -376,7 +428,7 @@ export const ProductDetailPage: React.FC = () => {
 
                 <div className="mt-3">
                   <Link
-                    to={`/sellers/${product.sellerId}`}
+                    to={`/members/${product.sellerId}`}
                     className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
                   >
                     <span>View Profile & All Posts</span>
@@ -396,7 +448,7 @@ export const ProductDetailPage: React.FC = () => {
             <div className="flex items-start justify-between pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">
-                  Message Seller Regarding Product
+                  Message About This Listing
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5 truncate max-w-sm">
                   {product.name} • {formatPrice(product.price)}
@@ -425,10 +477,10 @@ export const ProductDetailPage: React.FC = () => {
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      'Is this product still available?',
-                      'Can you deliver this product to my location?',
+                      'Is this still available?',
+                      'Where can I see it / where is your shop?',
                       'Is the price negotiable?',
-                      'What warranty comes with this item?',
+                      'What warranty comes with this?',
                     ].map((prompt, idx) => (
                       <button
                         key={idx}
@@ -472,12 +524,12 @@ export const ProductDetailPage: React.FC = () => {
                     <div>
                       <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
                         <Navigation className="w-3.5 h-3.5 text-indigo-600" />
-                        Attach my delivery location with this inquiry
+                        Attach my saved location with this inquiry
                       </span>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        {buyerProfile?.deliveryAddress
-                          ? `Location: ${buyerProfile.deliveryAddress}, ${buyerProfile.deliveryCity || 'Addis Ababa'}`
-                          : 'You can set your default delivery address in your Buyer Profile or enter it directly.'}
+                        {savedLocationText
+                          ? `Location: ${savedLocationText}`
+                          : 'You can save your location in your Profile.'}
                       </p>
                     </div>
                   </label>
@@ -497,7 +549,7 @@ export const ProductDetailPage: React.FC = () => {
                     className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-md transition disabled:opacity-50"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>{isSending ? 'Sending...' : 'Send Inquiry to Seller'}</span>
+                    <span>{isSending ? 'Sending...' : 'Send Message'}</span>
                   </button>
                 </div>
               </form>
@@ -506,57 +558,9 @@ export const ProductDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Report Listing Modal */}
-      {reportModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
-            <h3 className="text-base font-bold text-slate-900">Report Inappropriate Listing</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Help maintain platform trust. Reports are forwarded to central administration.
-            </p>
-
-            {reportSuccess ? (
-              <div className="py-6 text-center space-y-2">
-                <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
-                <p className="text-xs font-semibold text-slate-800">
-                  Thank you. Your report has been submitted for administrative review.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleReportSubmit} className="mt-4 space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Reason for report *
-                  </label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={reportReason}
-                    onChange={(e) => setReportReason(e.target.value)}
-                    placeholder="e.g. Suspected counterfeit, misleading pricing, unavailable item..."
-                    className="w-full text-xs rounded-xl border border-slate-200 p-2.5 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setReportModalOpen(false)}
-                    className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl shadow-xs"
-                  >
-                    Submit Report
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
+      {/* Report Listing Modal (creates a moderation record only) */}
+      {reportModalOpen && user && (
+        <ReportListingModal product={product} reporter={user} onClose={() => setReportModalOpen(false)} />
       )}
     </div>
   );

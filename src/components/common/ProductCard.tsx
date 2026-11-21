@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MapPin, Phone, MessageSquare, ShieldCheck, Eye } from 'lucide-react';
 import type { Product } from '../../types';
 import { StatusBadge } from './StatusBadge';
+import { CONDITION_LABELS, formatDistance, formatETB, isProductListing, isServiceListing } from '../../utils/members';
 
 interface ProductCardProps {
   product: Product;
@@ -10,20 +11,9 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = false }) => {
-  const formatPrice = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const conditionLabels: Record<string, string> = {
-    new: 'Brand New',
-    like_new: 'Like New',
-    good: 'Good Condition',
-    fair: 'Fair',
-  };
+  const isService = isServiceListing(product.listingType);
+  const isProduct = isProductListing(product.listingType);
+  const distanceText = formatDistance(product.distanceKm);
 
   return (
     <div className="group flex flex-col bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-xl hover:border-slate-300 transition-all duration-200">
@@ -37,12 +27,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = 
         />
 
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1">
-          <span className="bg-white/95 backdrop-blur-xs text-slate-800 text-[11px] font-semibold px-2 py-0.5 rounded-md shadow-xs">
-            {product.listingType || product.categoryName}
-          </span>
-          {product.condition && product.listingType !== 'Posts' && (
-            <span className="bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-medium px-2 py-0.5 rounded-md">
-              {conditionLabels[product.condition] || product.condition}
+          {isService ? (
+            <span className="bg-teal-600 text-white text-[11px] font-black px-2 py-0.5 rounded-md shadow-xs tracking-wide">
+              SERVICE
+            </span>
+          ) : (
+            <span className="bg-white/95 backdrop-blur-xs text-slate-800 text-[11px] font-semibold px-2 py-0.5 rounded-md shadow-xs">
+              {product.listingType}
+            </span>
+          )}
+          {isProduct && product.condition && (
+            <span
+              className={`text-white text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                product.condition === 'new' ? 'bg-emerald-600/90' : 'bg-amber-600/90'
+              }`}
+            >
+              {CONDITION_LABELS[product.condition]}
             </span>
           )}
         </div>
@@ -50,13 +50,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = 
         <div className="absolute top-2.5 right-2.5">
           {showStatus ? (
             <StatusBadge status={product.status} size="sm" />
-          ) : product.quantity > 0 ? (
+          ) : !isProduct ? null : !product.isSoldOut && product.quantity > 0 ? (
             <span className="bg-emerald-500/90 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs">
               In Stock ({product.quantity})
             </span>
           ) : (
             <span className="bg-rose-500/90 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs">
-              Out of Stock
+              Sold Out
             </span>
           )}
         </div>
@@ -68,7 +68,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = 
           <div className="flex items-baseline justify-between gap-2 mb-1">
             {product.listingType !== 'Posts' ? (
               <span className="text-xl font-bold text-slate-900">
-                {formatPrice(product.price)}
+                {formatETB(product.price, { startingPrice: isService && product.isStartingPrice })}
               </span>
             ) : (
               <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
@@ -98,7 +98,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = 
         <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <Link
-              to={`/sellers/${product.sellerId}`}
+              to={`/members/${product.sellerId}`}
               className="font-medium text-slate-700 hover:text-indigo-600 flex items-center gap-1 truncate"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
@@ -106,7 +106,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = 
             </Link>
             <span className="flex items-center gap-1 text-[11px] text-slate-400 shrink-0">
               <MapPin className="w-3 h-3" />
-              <span className="truncate max-w-[100px]">{product.sellerLocation.split(',')[0]}</span>
+              <span className="truncate max-w-[120px]">
+                {distanceText ? `${product.locationSubCity} • ${distanceText}` : product.locationSubCity || product.sellerLocation.split(',')[0]}
+              </span>
             </span>
           </div>
 
@@ -114,10 +116,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showStatus = 
             <a
               href={`tel:${product.sellerPhone}`}
               className="flex items-center justify-center gap-1.5 py-1.5 px-2 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-700 rounded-xl text-xs font-medium transition"
-              title={`Call seller at ${product.sellerPhone}`}
+              title={`Call ${product.sellerPhone}`}
             >
               <Phone className="w-3.5 h-3.5" />
-              <span>Call Seller</span>
+              <span>Call</span>
             </a>
 
             <Link

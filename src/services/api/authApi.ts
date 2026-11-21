@@ -1,4 +1,4 @@
-import type { User, BuyerProfile, SellerProfile } from '../../types';
+import type { User, MemberProfile, MemberVerificationDetails } from '../../types';
 import {
   loadStorageData,
   saveStorageData,
@@ -7,6 +7,7 @@ import {
   simulateLatency,
 } from '../mockStorage';
 import { getSupabase } from '../supabaseClient';
+import { mapSupabaseUser } from './memberApi';
 
 const CREDENTIALS_KEY = 'agora_marketplace_credentials_v1';
 const RESET_OTP_KEY = 'agora_password_reset_otps_v1';
@@ -48,106 +49,134 @@ export interface LoginCredentials {
   password?: string;
 }
 
-export interface RegisterBuyerData {
+/** Everything collected by the single member registration flow. */
+export interface RegisterMemberData {
   name: string;
   email: string;
   phone: string;
   password?: string;
+  businessName?: string;
+  businessDescription?: string;
+  city: string;
+  subCity: string;
+  addressDescription?: string;
+  latitude?: number;
+  longitude?: number;
+  verification: MemberVerificationDetails;
 }
 
-export interface RegisterSellerData {
-  name: string;
-  email?: string;
-  phone: string;
-  storeName: string;
-  location: string;
-  businessDescription: string;
-  password?: string;
+const DEFAULT_AVATAR =
+  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80';
+
+/** Suspended administrator accounts cannot sign in. Members can (they see their status page). */
+function assertAdminNotSuspended(user: User): void {
+  if (user.role === 'admin' && user.status === 'suspended') {
+    throw new Error('This account has been suspended. Please contact platform administration.');
+  }
 }
 
 export const authApi = {
+  /**
+   * Returns the signed-in member. When Supabase is configured the account
+   * (and therefore its verification status) is re-read from the backend so
+   * the client cache can never grant access by itself.
+   */
   async getCurrentUser(): Promise<User | null> {
-    const user = getStoredCurrentUser();
-    return simulateLatency(user, 50);
+    const cached = getStoredCurrentUser();
+    if (!cached) return simulateLatency(null, 50);
+
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', cached.id).maybeSingle();
+        if (profile) {
+          const fresh = mapSupabaseUser(profile);
+          setStoredCurrentUser(fresh);
+          return fresh;
+        }
+        if (!error) {
+          // The account no longer exists in Supabase: end the stale session.
+          setStoredCurrentUser(null);
+          return null;
+        }
+      } catch (err) {
+        console.warn('Supabase getCurrentUser refresh note:', err);
+      }
+    }
+    return simulateLatency(cached, 50);
   },
 
+  /**
+   * Pending, rejected and suspended members can sign in; the app then shows
+   * them their verification status instead of the marketplace.
+   */
   async login(credentials: LoginCredentials): Promise<User> {
     const email = credentials.email.trim().toLowerCase();
     const inputPassword = credentials.password?.trim() || '';
 
-    // Validate password against stored credentials if registered
+    const supabase = getSupabase();
+
+    if (supabase) {
+      // Same rules as the mobile app: the account must exist in Supabase and
+      // the password must be accepted by Supabase Auth or match the account's
+      // registered credential.
+      if (!inputPassword) {
+        throw new Error('Please enter your password.');
+      }
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .ilike('email', email)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error('Could not reach the server. Please check your connection and try again.');
+      }
+      if (!profile) {
+        throw new Error('No account was found with this email address.');
+      }
+
+      let passwordValid = false;
+      try {
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password: inputPassword,
+        });
+        passwordValid = !authError && Boolean(authData?.user);
+      } catch (authErr: any) {
+        console.warn('Supabase signInWithPassword note:', authErr?.message);
+      }
+      if (!passwordValid) {
+        const knownPassword = getStoredCredentials()[email];
+        passwordValid = Boolean(knownPassword) && knownPassword === inputPassword;
+      }
+      if (!passwordValid) {
+        throw new Error('Invalid email or password. Please check your credentials or reset your password.');
+      }
+
+      const user = mapSupabaseUser(profile);
+      assertAdminNotSuspended(user);
+      setStoredCurrentUser(user);
+      return user;
+    }
+
+    // Validate password against stored credentials if registered (demo mode)
     const creds = getStoredCredentials();
     const expectedPassword = creds[email];
     if (expectedPassword && inputPassword && inputPassword !== expectedPassword) {
       throw new Error('Invalid password. Please check your credentials or reset your password.');
     }
 
-    const supabase = getSupabase();
-
-    if (supabase) {
-      try {
-        if (inputPassword) {
-          try {
-            await supabase.auth.signInWithPassword({ email, password: inputPassword });
-          } catch (authErr: any) {
-            console.warn('Supabase signInWithPassword note:', authErr.message);
-          }
-        }
-
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .ilike('email', email)
-          .maybeSingle();
-
-        if (profile) {
-          if (profile.status === 'suspended') {
-            throw new Error('This account has been suspended. Please contact platform administration.');
-          }
-
-          const user: User = {
-            id: profile.id,
-            name: profile.name,
-            email: profile.email,
-            phone: profile.phone || '+251900000000',
-            role: profile.role,
-            status: profile.status,
-            avatarUrl:
-              profile.avatar_url ||
-              `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80`,
-            createdAt: profile.created_at,
-          };
-
-          setStoredCurrentUser(user);
-          return user;
-        }
-
-        if (error) {
-          console.warn('Supabase login query error:', error);
-        } else {
-          throw new Error('No user account found matching this email address in Supabase.');
-        }
-      } catch (err: any) {
-        if (err.message && !err.message.includes('fetch')) {
-          throw err;
-        }
-      }
-    }
-
-    // Local storage fallback if offline
+    // Local demo data (only when no Supabase project is configured)
     const data = loadStorageData();
-    const user = data.users.find(
-      (u) => u.email.toLowerCase() === email
-    );
+    const user = data.users.find((u) => u.email.toLowerCase() === email);
 
     if (!user) {
       throw new Error('Invalid email or account does not exist.');
     }
 
-    if (user.status === 'suspended') {
-      throw new Error('This account has been suspended. Please contact platform administration.');
-    }
-
+    assertAdminNotSuspended(user);
     setStoredCurrentUser(user);
     return simulateLatency(user, 150);
   },
@@ -157,186 +186,202 @@ export const authApi = {
     if (supabase) {
       try {
         await supabase.auth.signOut();
-      } catch (_) {}
+      } catch {
+        // Ignore sign-out errors; the local session is cleared below.
+      }
     }
     setStoredCurrentUser(null);
     return simulateLatency(undefined, 50);
   },
 
-  async registerBuyer(buyerData: RegisterBuyerData): Promise<User> {
-    if (!buyerData.name.trim() || !buyerData.email.trim() || !buyerData.phone.trim()) {
+  /**
+   * One registration process for every member. New members always start as
+   * `pending`; only the backend/admin team can approve them.
+   */
+  async registerMember(input: RegisterMemberData): Promise<User> {
+    if (!input.name.trim() || !input.email.trim() || !input.phone.trim()) {
       throw new Error('Please fill out all required fields (Name, Email, Phone).');
     }
+    if (!input.verification.industryDescription.trim() || !input.verification.idNumber.trim()) {
+      throw new Error('Please complete your repair-industry and verification details.');
+    }
+    // The shop / work location on the map is required for every member.
+    if (typeof input.latitude !== 'number' || typeof input.longitude !== 'number') {
+      throw new Error('Please set your shop / work location on the map before submitting.');
+    }
 
-    const email = buyerData.email.trim().toLowerCase();
-    const userId = `user-buyer-${Date.now()}`;
-    const now = new Date().toISOString();
-
-    const newUser: User = {
-      id: userId,
-      name: buyerData.name.trim(),
-      email,
-      phone: buyerData.phone.trim(),
-      role: 'buyer',
-      status: 'active',
-      avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80`,
-      createdAt: now,
-    };
-
-    const newProfile: BuyerProfile = {
-      userId,
-      bio: '',
-      deliveryAddress: '',
-      deliveryCity: 'Addis Ababa',
-      updatedAt: now,
-    };
-
+    const email = input.email.trim().toLowerCase();
     const supabase = getSupabase();
+
     if (supabase) {
-      try {
-        await supabase.from('profiles').insert({
-          id: userId,
-          name: newUser.name,
-          email: newUser.email,
-          phone: newUser.phone,
-          role: 'buyer',
-          status: 'active',
-          avatar_url: newUser.avatarUrl,
-          created_at: now,
-          updated_at: now,
-        });
-
-        await supabase.from('buyer_profiles').insert({
-          id: `bp-${Date.now()}`,
-          user_id: userId,
-          delivery_city: 'Addis Ababa',
-          updated_at: now,
-        });
-
-        await supabase.from('activity_logs').insert({
-          id: `act-${Date.now()}`,
-          actor_name: newUser.name,
-          actor_role: 'buyer',
-          action: 'REGISTER_BUYER',
-          details: `New buyer registered in Supabase: ${newUser.name} (${newUser.email})`,
-          created_at: now,
-        });
-      } catch (err: any) {
-        console.warn('Supabase registerBuyer error:', err);
+      const { data: existing, error: lookupError } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('email', email)
+        .limit(1);
+      if (lookupError) {
+        throw new Error('Could not reach the server. Please check your connection and try again.');
       }
+      if ((existing || []).length > 0) {
+        throw new Error('An account with this email already exists. Please sign in instead.');
+      }
+    } else if (loadStorageData().users.some((u) => u.email.toLowerCase() === email)) {
+      throw new Error('An account with this email already exists. Please sign in instead.');
     }
 
-    const data = loadStorageData();
-    data.users.push(newUser);
-    data.buyerProfiles.push(newProfile);
-    saveStorageData(data);
-    if (buyerData.password?.trim()) {
-      const creds = getStoredCredentials();
-      creds[email] = buyerData.password.trim();
-      saveStoredCredentials(creds);
-    }
-    setStoredCurrentUser(newUser);
-    return simulateLatency(newUser, 200);
-  },
-
-  async registerSeller(sellerData: RegisterSellerData): Promise<{ user: User; profile: SellerProfile }> {
-    if (!sellerData.name.trim() || !sellerData.phone.trim() || !sellerData.storeName.trim() || !sellerData.location.trim()) {
-      throw new Error('Full name, phone, store name, and store location are required.');
-    }
-
-    const sellerEmail = sellerData.email?.trim().toLowerCase() || `seller-${Date.now()}@marketplace.et`;
-    const userId = `user-seller-${Date.now()}`;
-    const sellerId = `seller-${Date.now()}`;
     const now = new Date().toISOString();
+    const userId = `user-member-${Date.now()}`;
+    const businessName = input.businessName?.trim() || input.name.trim();
+    const location = `${input.subCity}, ${input.city}`;
 
     const newUser: User = {
       id: userId,
-      name: sellerData.name.trim(),
-      email: sellerEmail,
-      phone: sellerData.phone.trim(),
-      role: 'seller',
+      name: input.name.trim(),
+      email,
+      phone: input.phone.trim(),
+      role: 'member',
       status: 'pending',
-      avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80`,
+      verification: input.verification,
+      avatarUrl: DEFAULT_AVATAR,
       createdAt: now,
     };
 
-    const newProfile: SellerProfile = {
-      id: sellerId,
+    const newProfile: MemberProfile = {
+      id: userId,
       userId,
-      storeName: sellerData.storeName.trim(),
-      businessDescription: sellerData.businessDescription.trim() || 'Trusted marketplace merchant.',
-      phone: sellerData.phone.trim(),
-      email: sellerEmail,
-      location: sellerData.location.trim(),
-      logoUrl: `https://images.unsplash.com/photo-1544816155-12df9643f363?w=300&auto=format&fit=crop&q=80`,
-      status: 'pending',
+      businessName,
+      businessDescription: input.businessDescription?.trim() || input.verification.industryDescription.trim(),
+      phone: input.phone.trim(),
+      email,
+      city: input.city,
+      subCity: input.subCity,
+      addressDescription: input.addressDescription?.trim() || undefined,
+      location,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      logoUrl: DEFAULT_AVATAR,
       createdAt: now,
       updatedAt: now,
     };
 
-    const supabase = getSupabase();
     if (supabase) {
-      try {
-        await supabase.from('profiles').insert({
+      if (input.password?.trim()) {
+        try {
+          await supabase.auth.signUp({ email, password: input.password.trim() });
+        } catch (authErr) {
+          console.warn('Supabase auth.signUp note:', authErr);
+        }
+      }
+
+        const legacyProfile = {
           id: userId,
           name: newUser.name,
-          email: newUser.email,
+          email,
           phone: newUser.phone,
-          role: 'seller',
           status: 'pending',
           avatar_url: newUser.avatarUrl,
+          city: input.city,
+          sub_city: input.subCity,
           created_at: now,
           updated_at: now,
-        });
+        };
+      // Unified-member columns first; fall back to the current schema.
+      const { error: memberErr } = await supabase.from('profiles').insert({
+        ...legacyProfile,
+        role: 'member',
+        verification_details: input.verification,
+      });
+      if (memberErr) {
+        console.warn('Supabase member profile insert note, retrying legacy columns:', memberErr.message);
+        const { error: legacyErr } = await supabase.from('profiles').insert(legacyProfile);
+        if (legacyErr) {
+          throw new Error(`Could not create your account: ${legacyErr.message}`);
+        }
+      }
 
-        await supabase.from('seller_profiles').insert({
-          id: sellerId,
+      try {
+        const { error: businessErr } = await supabase.from('seller_profiles').insert({
+          id: `business-${Date.now()}`,
           user_id: userId,
-          store_name: newProfile.storeName,
+          store_name: businessName,
           business_description: newProfile.businessDescription,
           phone: newProfile.phone,
-          email: newProfile.email,
-          location: newProfile.location,
-          status: 'pending',
+          email,
+          city: input.city,
+          sub_city: input.subCity,
+          address_description: newProfile.addressDescription ?? null,
+          latitude: input.latitude ?? null,
+          longitude: input.longitude ?? null,
+          location,
           created_at: now,
           updated_at: now,
         });
+        if (businessErr) console.warn('Supabase business profile insert note:', businessErr.message);
 
         await supabase.from('notifications').insert({
           id: `notif-${Date.now()}`,
           user_id: 'user-admin',
-          title: 'New Seller Registration Pending',
-          message: `Seller "${newProfile.storeName}" (${newUser.name}) registered and is awaiting admin approval.`,
+          title: 'Member Awaiting Verification',
+          message: `New member "${newUser.name}" registered and is waiting for one-time verification.`,
           type: 'system',
           is_read: false,
-          link_to: '/admin/sellers/approvals',
+          link_to: '/admin/members/verification',
           created_at: now,
         });
 
         await supabase.from('activity_logs').insert({
           id: `act-${Date.now()}`,
           actor_name: newUser.name,
-          actor_role: 'seller',
-          action: 'REGISTER_SELLER',
-          details: `New seller application submitted for "${newProfile.storeName}". Status: Pending Review`,
+          actor_role: 'member',
+          action: 'REGISTER_MEMBER',
+          details: `New member registered: ${newUser.name} (${email}). Status: pending verification.`,
           created_at: now,
         });
       } catch (err: any) {
-        console.warn('Supabase registerSeller error:', err);
+        // The account itself was created; these records are supplementary.
+        console.warn('Supabase registerMember follow-up note:', err);
       }
+
+      if (input.password?.trim()) {
+        const creds = getStoredCredentials();
+        creds[email] = input.password.trim();
+        saveStoredCredentials(creds);
+      }
+      setStoredCurrentUser(newUser);
+      return newUser;
     }
 
+    // Local demo data (only when no Supabase project is configured)
     const data = loadStorageData();
     data.users.push(newUser);
-    data.sellerProfiles.push(newProfile);
+    data.memberProfiles.push(newProfile);
+    data.notifications.unshift({
+      id: `notif-${Date.now()}`,
+      userId: 'user-admin',
+      title: 'Member Awaiting Verification',
+      message: `New member "${newUser.name}" registered and is waiting for one-time verification.`,
+      type: 'system',
+      isRead: false,
+      linkTo: '/admin/members/verification',
+      createdAt: now,
+    });
+    data.activityLogs.unshift({
+      id: `act-${Date.now()}`,
+      actorName: newUser.name,
+      actorRole: 'member',
+      action: 'REGISTER_MEMBER',
+      details: `New member registered: ${newUser.name}. Status: pending verification.`,
+      createdAt: now,
+    });
     saveStorageData(data);
-    if (sellerData.password?.trim()) {
+
+    if (input.password?.trim()) {
       const creds = getStoredCredentials();
-      creds[sellerEmail] = sellerData.password.trim();
+      creds[email] = input.password.trim();
       saveStoredCredentials(creds);
     }
     setStoredCurrentUser(newUser);
-    return simulateLatency({ user: newUser, profile: newProfile }, 200);
+    return simulateLatency(newUser, 200);
   },
 
   async sendPasswordResetOtp(email: string): Promise<{ success: boolean; message: string; otp?: string }> {
@@ -432,23 +477,13 @@ export const authApi = {
   async quickSwitchUser(userId: string): Promise<User> {
     const supabase = getSupabase();
     if (supabase) {
-      try {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-        if (profile) {
-          const user: User = {
-            id: profile.id,
-            name: profile.name,
-            email: profile.email,
-            phone: profile.phone || '+251900000000',
-            role: profile.role,
-            status: profile.status,
-            avatarUrl: profile.avatar_url,
-            createdAt: profile.created_at,
-          };
-          setStoredCurrentUser(user);
-          return user;
-        }
-      } catch (_) {}
+      const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!profile) throw new Error(`User with ID ${userId} not found.`);
+      const user = mapSupabaseUser(profile);
+      assertAdminNotSuspended(user);
+      setStoredCurrentUser(user);
+      return user;
     }
 
     const data = loadStorageData();

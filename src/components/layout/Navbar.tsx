@@ -12,15 +12,15 @@ import {
   Shield,
   LogOut,
   ChevronDown,
-  Store,
+  Hourglass,
 } from 'lucide-react';
 import logoImg from '../../assets/Adiss_Repairs.png';
 import { useAuth } from '../../features/auth/AuthContext';
 import { NotificationBell } from '../common/NotificationBell';
-import { isApprovedSeller, isRejectedSeller } from '../../utils/permissions';
+import { canPostListings } from '../../utils/permissions';
 
 export const Navbar: React.FC = () => {
-  const { user, sellerProfile, logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
@@ -42,8 +42,9 @@ export const Navbar: React.FC = () => {
     navigate('/');
   };
 
-  const canSell = isApprovedSeller(user, sellerProfile);
-  const isRejected = isRejectedSeller(user, sellerProfile);
+  // Every approved member can post ads — there is no separate seller role.
+  const canPost = canPostListings(user);
+  const isMemberAwaitingAccess = Boolean(user && user.role === 'member' && user.status !== 'approved');
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
@@ -76,7 +77,7 @@ export const Navbar: React.FC = () => {
           >
             <input
               type="text"
-              placeholder="Search products by title, category, or keyword..."
+              placeholder="Search products by title or keyword..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-20 py-2 text-sm bg-slate-100 hover:bg-slate-100/80 focus:bg-white text-slate-800 rounded-xl border border-transparent focus:border-[#75C96B] focus:outline-none focus:ring-2 focus:ring-[#75C96B]/20 transition-all placeholder:text-slate-400"
@@ -95,22 +96,19 @@ export const Navbar: React.FC = () => {
             <Link to="/products" className="hover:text-slate-900 transition">
               Explore Products
             </Link>
-            <Link to="/categories" className="hover:text-slate-900 transition">
-              Categories
-            </Link>
-            {canSell ? (
+            {canPost ? (
               <Link
-                to="/seller/products/new"
+                to="/account/ads/new"
                 className="flex items-center gap-1.5 text-[#23521d] hover:text-[#163612] font-semibold"
               >
                 <PackagePlus className="w-4 h-4" />
-                <span>Add Product</span>
+                <span>Post Ad</span>
               </Link>
-            ) : user?.role === 'admin' ? null : (
-              <Link to="/register/seller" className="hover:text-slate-900 transition">
-                Sell on Addis Repair
+            ) : !user ? (
+              <Link to="/register" className="hover:text-slate-900 transition">
+                Join Addis Repair
               </Link>
-            )}
+            ) : null}
           </nav>
 
           {/* User controls / Notifications */}
@@ -133,7 +131,7 @@ export const Navbar: React.FC = () => {
                       {user.name}
                     </p>
                     <p className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider">
-                      {user.role}
+                      {user.role === 'admin' ? 'admin' : user.status === 'approved' ? 'verified member' : user.status}
                     </p>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -160,104 +158,58 @@ export const Navbar: React.FC = () => {
                           Admin Console
                         </Link>
                         <Link
-                          to="/admin/products/approvals"
+                          to="/admin/members/verification"
                           className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
                         >
                           <LayoutDashboard className="w-4 h-4 text-purple-600" />
-                          Approval Queues
+                          Member Verification
                         </Link>
                         <div className="border-t border-slate-100 my-1" />
-                        <span className="px-4 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Admin Selling Hub
-                        </span>
-                        <Link
-                          to="/seller/dashboard"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <Store className="w-4 h-4 text-indigo-600" />
-                          Seller Dashboard
-                        </Link>
-                        <Link
-                          to="/seller/products/new"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <PackagePlus className="w-4 h-4 text-indigo-600" />
-                          Add Product
-                        </Link>
-                        <Link
-                          to="/seller/products"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <ShoppingBag className="w-4 h-4 text-indigo-600" />
-                          My Products
-                        </Link>
-                        <Link
-                          to="/seller/messages"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <MessageSquare className="w-4 h-4 text-indigo-600" />
-                          Customer Messages
-                        </Link>
                       </>
                     )}
 
-                    {user.role === 'seller' && !isRejected && (
+                    {/* One member menu for everyone — no buyer/seller split */}
+                    {canPost && (
                       <>
                         <Link
-                          to="/seller/dashboard"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <LayoutDashboard className="w-4 h-4 text-emerald-600" />
-                          Seller Dashboard
-                        </Link>
-                        <Link
-                          to="/seller/products"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <ShoppingBag className="w-4 h-4 text-emerald-600" />
-                          My Products
-                        </Link>
-                        <Link
-                          to="/seller/messages"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <MessageSquare className="w-4 h-4 text-emerald-600" />
-                          Customer Messages
-                        </Link>
-                        <Link
-                          to="/seller/profile"
+                          to="/account/profile"
                           className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
                         >
                           <User className="w-4 h-4 text-emerald-600" />
-                          Store Profile
+                          My Profile
+                        </Link>
+                        <Link
+                          to="/account/ads"
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
+                        >
+                          <ShoppingBag className="w-4 h-4 text-emerald-600" />
+                          My Ads
+                        </Link>
+                        <Link
+                          to="/account/ads/new"
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
+                        >
+                          <PackagePlus className="w-4 h-4 text-emerald-600" />
+                          Post Ad
+                        </Link>
+                        <Link
+                          to="/account/messages"
+                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
+                        >
+                          <MessageSquare className="w-4 h-4 text-emerald-600" />
+                          Messages
                         </Link>
                       </>
                     )}
 
-                    {(user.role === 'buyer' || isRejected) && (
-                      <>
-                        <Link
-                          to="/buyer/dashboard"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <LayoutDashboard className="w-4 h-4 text-blue-600" />
-                          Buyer Overview
-                        </Link>
-                        <Link
-                          to="/buyer/messages"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <MessageSquare className="w-4 h-4 text-blue-600" />
-                          My Inquiries
-                        </Link>
-                        <Link
-                          to="/buyer/profile"
-                          className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
-                        >
-                          <User className="w-4 h-4 text-blue-600" />
-                          Profile & Delivery Location
-                        </Link>
-                      </>
+                    {isMemberAwaitingAccess && (
+                      <Link
+                        to="/verification-status"
+                        className="flex items-center gap-2 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 font-medium"
+                      >
+                        <Hourglass className="w-4 h-4 text-amber-600" />
+                        Verification Status
+                      </Link>
                     )}
 
                     <div className="border-t border-slate-100 my-1" />
@@ -280,7 +232,7 @@ export const Navbar: React.FC = () => {
                   Log In
                 </Link>
                 <Link
-                  to="/register/buyer"
+                  to="/register"
                   className="px-3.5 py-1.5 text-xs font-bold text-[#202226] bg-[#75C96B] hover:bg-[#65b85b] rounded-xl shadow-xs transition"
                 >
                   Sign Up
@@ -331,30 +283,23 @@ export const Navbar: React.FC = () => {
             >
               Explore Products
             </Link>
-            <Link
-              to="/categories"
-              onClick={() => setMobileMenuOpen(false)}
-              className="p-2 rounded-lg hover:bg-slate-50"
-            >
-              All Categories
-            </Link>
-            {canSell ? (
+            {canPost ? (
               <Link
-                to="/seller/products/new"
+                to="/account/ads/new"
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 rounded-lg hover:bg-slate-50 text-[#23521d] font-semibold"
               >
-                Add Product
+                Post Ad
               </Link>
-            ) : user?.role === 'admin' ? null : (
+            ) : !user ? (
               <Link
-                to="/register/seller"
+                to="/register"
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 rounded-lg hover:bg-slate-50 text-[#23521d] font-semibold"
               >
-                Sell on Addis Repair
+                Join Addis Repair
               </Link>
-            )}
+            ) : null}
           </nav>
         </div>
       )}

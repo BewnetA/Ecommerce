@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
   Send,
   ArrowLeft,
@@ -11,11 +11,11 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { messagingApi, productApi } from '../../services/api';
 import type { Conversation, Message, Product, LocationSnippet } from '../../types';
+import { formatETB } from '../../utils/members';
 
 export const ConversationDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const location = useLocation();
-  const { user, buyerProfile } = useAuth();
+  const { user, memberProfile } = useAuth();
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,13 +32,10 @@ export const ConversationDetailPage: React.FC = () => {
   const initialScrolledRef = useRef(false);
   const prevMessagesCountRef = useRef(0);
 
-  const isSellerRoute = location.pathname.startsWith('/seller');
-  const isSeller =
-    isSellerRoute ||
-    conversation?.sellerId === user?.id ||
-    user?.role === 'seller' ||
-    user?.role === 'admin';
-  const backPath = isSellerRoute ? '/seller/messages' : '/buyer/messages';
+  // The member's side is decided per conversation: the owner of the ad
+  // (`seller` in the data) or the member who asked about it. No account modes.
+  const isSeller = Boolean(conversation && user && conversation.sellerId === user.id);
+  const backPath = '/account/messages';
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -135,11 +132,11 @@ export const ConversationDetailPage: React.FC = () => {
       let locationSnippet: LocationSnippet | undefined = undefined;
       if (attachLocation) {
         locationSnippet = {
-          address: buyerProfile?.deliveryAddress || 'Addis Ababa, Bole',
-          city: buyerProfile?.deliveryCity || 'Addis Ababa',
-          subcity: buyerProfile?.deliverySubcity || 'Bole Sub-City',
-          notes: buyerProfile?.deliveryNotes || '',
-          coordinates: buyerProfile?.locationCoordinates,
+          address: memberProfile?.currentAddress || memberProfile?.addressDescription || memberProfile?.location || 'Addis Ababa, Bole',
+          city: memberProfile?.currentCity || memberProfile?.city || 'Addis Ababa',
+          subcity: memberProfile?.currentSubcity || memberProfile?.subCity || 'Bole',
+          notes: memberProfile?.currentNotes || '',
+          coordinates: memberProfile?.currentCoordinates,
         };
       }
 
@@ -147,7 +144,7 @@ export const ConversationDetailPage: React.FC = () => {
         conversationId: conversation.id,
         senderId: user.id,
         senderName: user.name,
-        senderRole: user.role,
+        senderRole: isSeller ? 'seller' : 'buyer',
         content: inputText.trim() || (locationSnippet ? 'Shared delivery location' : ''),
         locationSnippet,
       });
@@ -223,7 +220,7 @@ export const ConversationDetailPage: React.FC = () => {
               {conversation.productName}
             </h3>
             <p className="text-xs font-black text-indigo-600 mt-0.5">
-              ${conversation.productPrice}
+              {formatETB(conversation.productPrice)}
             </p>
           </div>
         </div>
@@ -237,7 +234,7 @@ export const ConversationDetailPage: React.FC = () => {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-xl transition border border-emerald-200"
                 >
                   <Phone className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Call Seller</span>
+                  <span className="hidden sm:inline">Call</span>
                 </a>
               )}
               <Link
@@ -263,7 +260,7 @@ export const ConversationDetailPage: React.FC = () => {
             <div>
               <h4 className="text-xs font-bold text-slate-900">{otherPartyName}</h4>
               <p className="text-[10px] text-slate-500">
-                {isSeller ? 'Customer / Buyer' : 'Merchant'}
+                {isSeller ? 'Asking about your ad' : 'Ad owner'}
               </p>
             </div>
           </div>
@@ -355,14 +352,14 @@ export const ConversationDetailPage: React.FC = () => {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             {(isSeller
               ? [
-                  'Yes, this item is available for immediate pickup or delivery.',
-                  'Can you share your delivery location so we can calculate courier fees?',
-                  'Price is firm, includes official warranty.',
-                  'I have dispatched your item with courier.',
+                  'Yes, this is still available.',
+                  'You can visit my shop to inspect it.',
+                  'The price is firm and includes warranty.',
+                  'Can you share your location?',
                 ]
               : [
-                  'Can you deliver this product to my location today?',
-                  'Is the price negotiable for immediate cash purchase?',
+                  'Is this still available?',
+                  'Is the price negotiable?',
                   'What warranty or guarantee is included?',
                 ]
             ).map((prompt, idx) => (
@@ -388,7 +385,7 @@ export const ConversationDetailPage: React.FC = () => {
                     className="rounded-sm text-indigo-600 focus:ring-indigo-500"
                   />
                   <Navigation className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Attach my saved delivery address with this reply</span>
+                  <span>Attach my saved location with this reply</span>
                 </label>
               </div>
             )}
@@ -398,8 +395,8 @@ export const ConversationDetailPage: React.FC = () => {
                 type="text"
                 placeholder={
                   isSeller
-                    ? 'Reply to customer inquiry...'
-                    : 'Ask seller about availability or delivery...'
+                    ? `Reply to ${otherPartyName || 'member'}...`
+                    : 'Ask about availability, price or location...'
                 }
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}

@@ -63,7 +63,7 @@ export function useInfiniteList<T>({
     }
   }, [limit]);
 
-  // Trigger reload whenever dependencies (filters, search, category, etc.) change
+  // Trigger reload whenever dependencies (filters, search, etc.) change
   useEffect(() => {
     loadInitial();
     // eslint-disable-next-line react-hooks/exhaustive-deps

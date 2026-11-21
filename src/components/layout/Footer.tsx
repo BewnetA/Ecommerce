@@ -55,7 +55,7 @@ export const Footer: React.FC = () => {
             <span className="text-base font-bold tracking-tight text-white">Addis Repairs</span>
           </div>
           <p className="mt-3 text-xs text-slate-300 leading-relaxed">
-            A centralized digital marketplace connecting verified sellers and repair specialists with local buyers. Focused on simplicity, safety, and streamlined communication.
+            A marketplace for verified members of the mobile phone repair industry to buy, sell and offer repair services. Focused on simplicity, safety, and streamlined communication.
           </p>
         </div>
 
@@ -63,18 +63,17 @@ export const Footer: React.FC = () => {
           <h4 className="text-xs font-semibold text-white uppercase tracking-wider mb-3">Marketplace</h4>
           <ul className="space-y-2 text-xs">
             <li><Link to="/products" className="hover:text-white transition">All Products</Link></li>
-            <li><Link to="/categories" className="hover:text-white transition">Browse Categories</Link></li>
             <li><Link to="/products?condition=new" className="hover:text-white transition">Brand New Arrivals</Link></li>
             <li><Link to="/products?sortBy=popular" className="hover:text-white transition">Most Popular</Link></li>
           </ul>
         </div>
 
         <div>
-          <h4 className="text-xs font-semibold text-white uppercase tracking-wider mb-3">Merchant & Buyers</h4>
+          <h4 className="text-xs font-semibold text-white uppercase tracking-wider mb-3">Members</h4>
           <ul className="space-y-2 text-xs">
-            <li><Link to="/register/seller" className="hover:text-white transition">Apply as Seller</Link></li>
-            <li><Link to="/seller/dashboard" className="hover:text-white transition">Seller Portal</Link></li>
-            <li><Link to="/buyer/dashboard" className="hover:text-white transition">Buyer Account</Link></li>
+            <li><Link to="/register" className="hover:text-white transition">Create Member Account</Link></li>
+            <li><Link to="/account/ads/new" className="hover:text-white transition">Post Ad</Link></li>
+            <li><Link to="/account/profile" className="hover:text-white transition">My Profile & Ads</Link></li>
             <li><Link to="/login" className="hover:text-white transition">Account Login</Link></li>
           </ul>
         </div>
@@ -83,8 +82,8 @@ export const Footer: React.FC = () => {
           <h4 className="text-xs font-semibold text-white uppercase tracking-wider mb-3">Administration</h4>
           <ul className="space-y-2 text-xs">
             <li><Link to="/admin" className="hover:text-white transition">Admin Dashboard</Link></li>
-            <li><Link to="/admin/sellers/approvals" className="hover:text-white transition">Seller Approval Queue</Link></li>
-            <li><Link to="/admin/products/approvals" className="hover:text-white transition">Product Moderation</Link></li>
+            <li><Link to="/admin/members/verification" className="hover:text-white transition">Member Verification</Link></li>
+            <li><Link to="/admin/reports/items" className="hover:text-white transition">Reported Listings</Link></li>
             <li><Link to="/admin/reports" className="hover:text-white transition">Safety & Reports</Link></li>
           </ul>
         </div>

@@ -7,21 +7,19 @@ import {
   SlidersHorizontal,
   RefreshCw,
 } from 'lucide-react';
-import { productApi, categoryApi } from '../../services/api';
-import type { Product, ProductCondition } from '../../types';
-import type { CategoryWithCount } from '../../services/api';
+import { productApi } from '../../services/api';
+import type { ListingKindFilter, Product, ProductCondition } from '../../types';
+import { ADDIS_ABABA_AREAS, coordinatesForArea } from '../../utils/members';
 import { ProductCard } from '../../components/common/ProductCard';
 import { useInfiniteList, InfiniteScrollSentinel } from '../../hooks/useInfiniteList';
 
 export const ProductListingPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Filter state initialized from URL query params
   const [search, setSearch] = useState(searchParams.get('search') || '');
-  const [categoryId, setCategoryId] = useState(searchParams.get('categoryId') || 'all');
   const [condition, setCondition] = useState<ProductCondition | 'all'>(
     (searchParams.get('condition') as any) || 'all'
   );
@@ -29,36 +27,74 @@ export const ProductListingPage: React.FC = () => {
   const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
   const [inStockOnly, setInStockOnly] = useState(searchParams.get('inStockOnly') === 'true');
   const [location, setLocation] = useState(searchParams.get('location') || '');
-  const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'popular'>(
+  const [kind, setKind] = useState<ListingKindFilter>((searchParams.get('kind') as any) || 'all');
+  const [geoState, setGeoState] = useState<'idle' | 'requesting' | 'denied'>('idle');
+  const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'popular' | 'nearest'>(
     (searchParams.get('sortBy') as any) || 'newest'
   );
 
-  // Sync categories
-  useEffect(() => {
-    categoryApi.getCategories().then(setCategories);
-  }, []);
+  /** Reference point for nearby results: "lat,lng" from current or manually selected location. */
+  const nearParam = searchParams.get('near') || '';
+  const nearLabel = searchParams.get('nearLabel') || '';
+
+  const setNearPoint = (lat: number, lng: number, label: string) => {
+    const p = new URLSearchParams(searchParams);
+    p.set('near', `${lat.toFixed(5)},${lng.toFixed(5)}`);
+    p.set('nearLabel', label);
+    p.set('sortBy', 'nearest');
+    setSearchParams(p);
+  };
+
+  const clearNearPoint = () => {
+    const p = new URLSearchParams(searchParams);
+    p.delete('near');
+    p.delete('nearLabel');
+    if (p.get('sortBy') === 'nearest') p.delete('sortBy');
+    setSearchParams(p);
+  };
+
+  // GPS is optional and only requested when the visitor clicks the button.
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoState('denied');
+      return;
+    }
+    setGeoState('requesting');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoState('idle');
+        setNearPoint(pos.coords.latitude, pos.coords.longitude, 'My current location');
+      },
+      () => setGeoState('denied'),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const fetchProductsBatch = useCallback(
     async (offset: number, limit: number) => {
       const qSearch = searchParams.get('search') || '';
-      const qCat = searchParams.get('categoryId') || 'all';
       const qCond = (searchParams.get('condition') as any) || 'all';
       const qMin = searchParams.get('minPrice') || '';
       const qMax = searchParams.get('maxPrice') || '';
       const qStock = searchParams.get('inStockOnly') === 'true';
       const qLoc = searchParams.get('location') || '';
       const qSort = (searchParams.get('sortBy') as any) || 'newest';
+      const qKind = (searchParams.get('kind') as any) || 'all';
+      const [qLat, qLng] = (searchParams.get('near') || '').split(',').map(Number);
+      const hasNear = !isNaN(qLat) && !isNaN(qLng) && Boolean(searchParams.get('near'));
 
       return productApi.getPublicProducts(
         {
           search: qSearch || undefined,
-          categoryId: qCat !== 'all' ? qCat : undefined,
           condition: qCond !== 'all' ? qCond : undefined,
           minPrice: qMin ? Number(qMin) : undefined,
           maxPrice: qMax ? Number(qMax) : undefined,
           inStockOnly: qStock,
           location: qLoc || undefined,
-          sortBy: qSort,
+          kind: qKind,
+          nearLatitude: hasNear ? qLat : undefined,
+          nearLongitude: hasNear ? qLng : undefined,
+          sortBy: qSort === 'nearest' && !hasNear ? 'newest' : qSort,
         },
         limit,
         offset
@@ -82,12 +118,12 @@ export const ProductListingPage: React.FC = () => {
   // Keep local filter inputs in sync with URL params
   useEffect(() => {
     setSearch(searchParams.get('search') || '');
-    setCategoryId(searchParams.get('categoryId') || 'all');
     setCondition((searchParams.get('condition') as any) || 'all');
     setMinPrice(searchParams.get('minPrice') || '');
     setMaxPrice(searchParams.get('maxPrice') || '');
     setInStockOnly(searchParams.get('inStockOnly') === 'true');
     setLocation(searchParams.get('location') || '');
+    setKind((searchParams.get('kind') as any) || 'all');
     setSortBy((searchParams.get('sortBy') as any) || 'newest');
   }, [searchParams]);
 
@@ -95,12 +131,16 @@ export const ProductListingPage: React.FC = () => {
   const applyFilters = () => {
     const params = new URLSearchParams();
     if (search.trim()) params.set('search', search.trim());
-    if (categoryId && categoryId !== 'all') params.set('categoryId', categoryId);
     if (condition && condition !== 'all') params.set('condition', condition);
     if (minPrice) params.set('minPrice', minPrice);
     if (maxPrice) params.set('maxPrice', maxPrice);
     if (inStockOnly) params.set('inStockOnly', 'true');
     if (location.trim()) params.set('location', location.trim());
+    if (kind !== 'all') params.set('kind', kind);
+    if (nearParam) {
+      params.set('near', nearParam);
+      if (nearLabel) params.set('nearLabel', nearLabel);
+    }
     if (sortBy !== 'newest') params.set('sortBy', sortBy);
 
     setSearchParams(params, { replace: true });
@@ -113,24 +153,25 @@ export const ProductListingPage: React.FC = () => {
 
   const handleResetFilters = () => {
     setSearch('');
-    setCategoryId('all');
     setCondition('all');
     setMinPrice('');
     setMaxPrice('');
     setInStockOnly(false);
     setLocation('');
+    setKind('all');
     setSortBy('newest');
     setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   const hasActiveFilters =
     Boolean(search) ||
-    categoryId !== 'all' ||
     condition !== 'all' ||
     Boolean(minPrice) ||
     Boolean(maxPrice) ||
     inStockOnly ||
-    Boolean(location);
+    Boolean(location) ||
+    kind !== 'all' ||
+    Boolean(nearParam);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -196,43 +237,52 @@ export const ProductListingPage: React.FC = () => {
             )}
           </div>
 
-          {/* Category Filter */}
+          {/* Product vs Service */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Category
+              Listing Type
             </label>
-            <select
-              value={categoryId}
-              onChange={(e) => {
-                setCategoryId(e.target.value);
-                const p = new URLSearchParams(searchParams);
-                if (e.target.value === 'all') p.delete('categoryId');
-                else p.set('categoryId', e.target.value);
-                setSearchParams(p);
-              }}
-              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:border-indigo-500"
-            >
-              <option value="all">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.productCount})
-                </option>
+            <div className="grid grid-cols-3 gap-1">
+              {(
+                [
+                  { id: 'all', label: 'All' },
+                  { id: 'product', label: 'Products' },
+                  { id: 'service', label: 'Services' },
+                ] as const
+              ).map((k) => (
+                <button
+                  key={k.id}
+                  type="button"
+                  onClick={() => {
+                    setKind(k.id);
+                    const p = new URLSearchParams(searchParams);
+                    if (k.id === 'all') p.delete('kind');
+                    else p.set('kind', k.id);
+                    // New/Used applies to physical products only.
+                    if (k.id === 'service') p.delete('condition');
+                    setSearchParams(p);
+                  }}
+                  className={`py-1.5 rounded-lg text-xs font-semibold transition ${
+                    kind === k.id ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {k.label}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
-          {/* Condition Filter */}
+          {/* Condition Filter (physical products only) */}
+          {kind !== 'service' && (
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Condition
+              Condition (Products)
             </label>
             <div className="space-y-1.5 text-xs text-slate-600">
               {[
                 { id: 'all', label: 'All Conditions' },
-                { id: 'new', label: 'Brand New' },
-                { id: 'like_new', label: 'Like New' },
-                { id: 'good', label: 'Good' },
-                { id: 'fair', label: 'Fair' },
+                { id: 'new', label: 'New' },
+                { id: 'used', label: 'Used' },
               ].map((cond) => (
                 <label key={cond.id} className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -254,11 +304,12 @@ export const ProductListingPage: React.FC = () => {
               ))}
             </div>
           </div>
+          )}
 
           {/* Price Range */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Price Range ($)
+              Price Range (ETB)
             </label>
             <div className="grid grid-cols-2 gap-2">
               <input
@@ -300,14 +351,14 @@ export const ProductListingPage: React.FC = () => {
                 }}
                 className="rounded-sm text-indigo-600 focus:ring-indigo-500"
               />
-              <span>In-Stock Only</span>
+              <span>Available Only</span>
             </label>
           </div>
 
           {/* Location */}
           <div className="pt-2 border-t border-slate-100">
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Seller Location / City
+              Location / Area
             </label>
             <input
               type="text"
@@ -318,6 +369,50 @@ export const ProductListingPage: React.FC = () => {
               className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800"
             />
           </div>
+
+          {/* Nearby discovery (GPS optional, manual area fallback) */}
+          <div className="pt-2 border-t border-slate-100 space-y-2">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Nearby Results
+            </label>
+            {nearParam ? (
+              <div className="flex items-center justify-between gap-2 text-xs p-2 rounded-xl bg-lime-50 border border-lime-200">
+                <span className="text-lime-900 truncate">Near: {nearLabel || 'selected point'}</span>
+                <button type="button" onClick={clearNearPoint} className="text-rose-600 font-semibold shrink-0">
+                  Clear
+                </button>
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-500">Sort listings by distance from you or from a chosen area.</p>
+            )}
+            <button
+              type="button"
+              onClick={handleUseMyLocation}
+              disabled={geoState === 'requesting'}
+              className="w-full py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition disabled:opacity-50"
+            >
+              {geoState === 'requesting' ? 'Locating…' : 'Use my current location'}
+            </button>
+            {geoState === 'denied' && (
+              <p className="text-[11px] text-rose-600">Location access is unavailable — choose an area instead.</p>
+            )}
+            <select
+              value=""
+              onChange={(e) => {
+                const point = coordinatesForArea(e.target.value);
+                if (point) setNearPoint(point.latitude, point.longitude, e.target.value);
+              }}
+              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800"
+              aria-label="Choose an area for nearby results"
+            >
+              <option value="">Or choose an area…</option>
+              {ADDIS_ABABA_AREAS.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </div>
         </aside>
 
         {/* Main Products Grid */}
@@ -325,8 +420,8 @@ export const ProductListingPage: React.FC = () => {
           {/* Sorting Bar & Results Count */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
             <div className="text-xs text-slate-600">
-              Showing <span className="font-bold text-slate-900">{products.length}</span> verified{' '}
-              {products.length === 1 ? 'product' : 'products'}
+              Showing <span className="font-bold text-slate-900">{products.length}</span>{' '}
+              {products.length === 1 ? 'listing' : 'listings'}
             </div>
 
             <div className="flex items-center gap-2 text-xs">
@@ -345,6 +440,7 @@ export const ProductListingPage: React.FC = () => {
                 <option value="price_asc">Price: Low to High</option>
                 <option value="price_desc">Price: High to Low</option>
                 <option value="popular">Most Popular</option>
+                {nearParam && <option value="nearest">Nearest First</option>}
               </select>
             </div>
           </div>
@@ -357,14 +453,6 @@ export const ProductListingPage: React.FC = () => {
                 <span className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-200">
                   Search: "{search}"
                   <button onClick={() => { setSearch(''); const p = new URLSearchParams(searchParams); p.delete('search'); setSearchParams(p); }}>
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              )}
-              {categoryId !== 'all' && (
-                <span className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-200">
-                  Category: {categories.find((c) => c.id === categoryId)?.name || categoryId}
-                  <button onClick={() => { setCategoryId('all'); const p = new URLSearchParams(searchParams); p.delete('categoryId'); setSearchParams(p); }}>
                     <X className="w-3 h-3" />
                   </button>
                 </span>
@@ -402,7 +490,7 @@ export const ProductListingPage: React.FC = () => {
               </div>
               <h3 className="text-lg font-bold text-slate-800">No approved products match your criteria</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Try searching with different terms, selecting another category, or resetting your filters.
+                Try searching with different terms or resetting your filters.
               </p>
               <button
                 onClick={handleResetFilters}

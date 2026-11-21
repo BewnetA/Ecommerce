@@ -2,21 +2,25 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import type { UserRole } from '../types';
-import { isRejectedSeller, isApprovedSeller } from '../utils/permissions';
+import { isApprovedMember, needsVerificationScreen } from '../utils/permissions';
 import logoImg from '../assets/Adiss_Repairs.png';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: UserRole[];
-  requireApprovedSeller?: boolean;
+  /**
+   * Requires a member whose one-time verification is approved. Pending,
+   * rejected and suspended members are sent to the verification status page.
+   */
+  requireApprovedMember?: boolean;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   allowedRoles,
-  requireApprovedSeller = false,
+  requireApprovedMember = false,
 }) => {
-  const { user, sellerProfile, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -33,56 +37,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  if (!user) {
+  if (!user || (user.role === 'admin' && user.status === 'suspended')) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isRejected = isRejectedSeller(user, sellerProfile);
-  const isApproved = isApprovedSeller(user, sellerProfile);
-
-  // If this route is specifically for sellers:
-  if (allowedRoles && allowedRoles.includes('seller') && !allowedRoles.includes('buyer')) {
-    // 1. Rejected seller applicants MUST NEVER access seller routes
-    if (isRejected) {
-      return <Navigate to="/buyer/dashboard" replace />;
-    }
-
-    // 2. If requireApprovedSeller is true (e.g. Add Product, Edit Product), non-approved sellers are redirected to seller dashboard
-    if (requireApprovedSeller && !isApproved) {
-      return <Navigate to="/seller/dashboard" replace />;
-    }
-
-    // 3. Regular role check (admin or seller allowed)
-    if (user.role !== 'seller' && user.role !== 'admin') {
-      return <Navigate to="/buyer/dashboard" replace />;
-    }
-  }
-
-  // If this route is for buyers:
-  if (allowedRoles && allowedRoles.includes('buyer')) {
-    // Rejected applicants behave like ordinary buyers and are allowed
-    if (isRejected) {
-      return <>{children}</>;
-    }
-
-    // Admins and ordinary buyers are allowed
-    if (user.role === 'admin' || user.role === 'buyer') {
-      return <>{children}</>;
-    }
-
-    // If approved or pending seller visits buyer route, redirect to seller dashboard
-    if (user.role === 'seller') {
-      return <Navigate to="/seller/dashboard" replace />;
-    }
-  }
-
-  // General allowedRoles fallback
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     if (user.role === 'admin') return <Navigate to="/admin" replace />;
-    if (user.role === 'seller') {
-      return isRejected ? <Navigate to="/buyer/dashboard" replace /> : <Navigate to="/seller/dashboard" replace />;
-    }
-    return <Navigate to="/buyer/dashboard" replace />;
+    return <Navigate to={needsVerificationScreen(user) ? '/verification-status' : '/account/profile'} replace />;
+  }
+
+  if (requireApprovedMember && !isApprovedMember(user)) {
+    return <Navigate to="/verification-status" replace />;
   }
 
   return <>{children}</>;
